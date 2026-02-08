@@ -1,5 +1,5 @@
 /** Width of each world chunk in blocks */
-export const CHUNK_WIDTH = 20;
+export const CHUNK_WIDTH = 2000;
 
 /** Height of each world chunk in blocks */
 export const CHUNK_HEIGHT = 32;
