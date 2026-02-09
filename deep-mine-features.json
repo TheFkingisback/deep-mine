@@ -19,10 +19,10 @@
       "name": "Multiplayer",
       "features": {
         "P4_S01": { "name": "Shard System", "passes": true },
-        "P4_S02": { "name": "Other Player Rendering", "passes": false },
-        "P4_S03": { "name": "Shared Block Breaking", "passes": false },
-        "P4_S04": { "name": "Item Collection Conflicts", "passes": false },
-        "P4_S05": { "name": "Matchmaking", "passes": false },
+        "P4_S02": { "name": "Other Player Rendering", "passes": true },
+        "P4_S03": { "name": "Shared Block Breaking", "passes": true },
+        "P4_S04": { "name": "Item Collection Conflicts", "passes": true },
+        "P4_S05": { "name": "Matchmaking", "passes": true },
         "P4_S06": { "name": "Lobby Scene", "passes": false },
         "P4_S07": { "name": "Reconnection", "passes": false },
         "P4_S08": { "name": "Chat", "passes": false }
