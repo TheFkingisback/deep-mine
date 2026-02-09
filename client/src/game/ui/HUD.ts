@@ -1,8 +1,8 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { InventorySlot } from '@shared/types';
+import { ITEMS } from '@shared/items';
+import { getLayerAtDepth } from '@shared/layers';
 
-/**
- * Floating text animation data.
- */
 interface FloatingText {
   text: Text;
   vy: number;
@@ -11,550 +11,370 @@ interface FloatingText {
   startAlpha: number;
 }
 
-/**
- * HUD (Heads-Up Display) overlay showing essential game information.
- * Fixed on screen, not affected by camera movement.
- * Always renders on top of game elements.
- */
 export class HUD {
   private app: Application;
   private container: Container;
 
+  // Top bar background
+  private topBarBg: Graphics;
+
   // Display texts
   private goldText: Text;
   private depthText: Text;
-  private inventoryText: Text;
-  private checkpointText: Text; // Checkpoint button text
+  private layerText: Text;
+  private checkpointText!: Text;
+
+  // Items bar
+  private itemsBarContainer: Container;
+  private itemTexts: Text[] = [];
+  private totalValueText: Text;
 
   // Buttons
   private surfaceButton: Container;
   private checkpointButton: Container;
-  private inventoryButton: Container;
 
   // Gold rolling animation
   private displayedGold = 0;
   private targetGold = 0;
-  private goldRollingSpeed = 0.1; // 10% closer each frame
+  private goldRollingSpeed = 0.1;
 
   // Floating texts
   private floatingTexts: FloatingText[] = [];
 
   // Button callbacks
   private onSurfaceClick: (() => void) | null = null;
-  private onInventoryClick: (() => void) | null = null;
   private onCheckpointClick: (() => void) | null = null;
 
   constructor(app: Application) {
     this.app = app;
-
-    // Create container (will be added LAST to stage for top rendering)
     this.container = new Container();
+
+    // Semi-transparent top bar background
+    this.topBarBg = new Graphics();
+    this.container.addChild(this.topBarBg);
 
     // Create display elements
     this.goldText = this.createGoldDisplay();
     this.depthText = this.createDepthDisplay();
-    this.inventoryText = this.createInventoryDisplay();
+    this.layerText = this.createLayerDisplay();
+
+    // Create items bar
+    this.itemsBarContainer = new Container();
+    this.totalValueText = new Text({
+      text: '',
+      style: new TextStyle({
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 13,
+        fontWeight: 'bold',
+        fill: '#FFD700',
+        dropShadow: { color: '#000000', blur: 3, angle: Math.PI / 4, distance: 2 }
+      })
+    });
+    this.itemsBarContainer.addChild(this.totalValueText);
 
     // Create buttons
     this.surfaceButton = this.createSurfaceButton();
     this.checkpointButton = this.createCheckpointButton();
-    this.inventoryButton = this.createInventoryButton();
 
     // Add all to container
     this.container.addChild(this.goldText);
     this.container.addChild(this.depthText);
-    this.container.addChild(this.inventoryText);
+    this.container.addChild(this.layerText);
+    this.container.addChild(this.itemsBarContainer);
     this.container.addChild(this.surfaceButton);
     this.container.addChild(this.checkpointButton);
-    this.container.addChild(this.inventoryButton);
 
-    // Add container to stage LAST (renders on top)
     this.app.stage.addChild(this.container);
-
-    // Initial positioning
     this.resize(this.app.screen.width, this.app.screen.height);
   }
 
-  /**
-   * Create gold display text (top-left).
-   */
   private createGoldDisplay(): Text {
     const style = new TextStyle({
       fontFamily: 'Helvetica, Arial, sans-serif',
-      fontSize: 18,
+      fontSize: 20,
       fontWeight: 'bold',
       fill: '#FFD700',
-      dropShadow: {
-        color: '#000000',
-        blur: 3,
-        angle: Math.PI / 4,
-        distance: 2
-      }
+      dropShadow: { color: '#000000', blur: 4, angle: Math.PI / 4, distance: 2 }
     });
-
     const text = new Text({ text: 'G 0', style });
-    text.x = 10;
-    text.y = 10;
-
+    text.x = 12;
+    text.y = 8;
     return text;
   }
 
-  /**
-   * Create depth display text (top-right).
-   */
   private createDepthDisplay(): Text {
     const style = new TextStyle({
       fontFamily: 'Arial, sans-serif',
       fontSize: 16,
+      fontWeight: 'bold',
       fill: '#FFFFFF',
-      dropShadow: {
-        color: '#000000',
-        blur: 3,
-        angle: Math.PI / 4,
-        distance: 2
-      }
+      dropShadow: { color: '#000000', blur: 3, angle: Math.PI / 4, distance: 2 }
     });
-
-    const text = new Text({ text: 'Depth: 0', style });
-
-    return text;
+    return new Text({ text: 'Depth: 0', style });
   }
 
-  /**
-   * Create inventory display text (top-center).
-   */
-  private createInventoryDisplay(): Text {
+  private createLayerDisplay(): Text {
     const style = new TextStyle({
       fontFamily: 'Arial, sans-serif',
-      fontSize: 14,
-      fill: '#FFFFFF',
-      dropShadow: {
-        color: '#000000',
-        blur: 3,
-        angle: Math.PI / 4,
-        distance: 2
-      }
+      fontSize: 12,
+      fill: '#AAAAAA',
+      dropShadow: { color: '#000000', blur: 2, angle: Math.PI / 4, distance: 1 }
     });
-
-    const text = new Text({ text: 'Inventory: 0 / 8', style });
-
-    return text;
+    return new Text({ text: '', style });
   }
 
-  /**
-   * Create Surface button (bottom-left).
-   */
   private createSurfaceButton(): Container {
     const button = new Container();
     button.eventMode = 'static';
     button.cursor = 'pointer';
 
-    // Background
     const bg = new Graphics();
-    bg.roundRect(0, 0, 140, 40, 8);
-    bg.fill('#4A90D9');
+    bg.roundRect(0, 0, 140, 40, 10);
+    bg.fill({ color: 0x4A90D9, alpha: 0.9 });
+    bg.roundRect(0, 0, 140, 40, 10);
+    bg.stroke({ width: 2, color: 0x6AB0F9, alpha: 0.5 });
     button.addChild(bg);
 
-    // Text
-    const style = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 16,
-      fill: '#FFFFFF',
-      fontWeight: 'bold'
-    });
+    const style = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 16, fill: '#FFFFFF', fontWeight: 'bold' });
     const text = new Text({ text: '⬆ Surface', style });
     text.anchor.set(0.5);
-    text.x = 70;
-    text.y = 20;
+    text.x = 70; text.y = 20;
     button.addChild(text);
 
-    // Hover effect
     button.on('pointerover', () => {
       bg.clear();
-      bg.roundRect(0, 0, 140, 40, 8);
-      bg.fill('#5BA0E9');
+      bg.roundRect(0, 0, 140, 40, 10);
+      bg.fill({ color: 0x5BA0E9, alpha: 0.95 });
+      bg.roundRect(0, 0, 140, 40, 10);
+      bg.stroke({ width: 2, color: 0x8BC0FF, alpha: 0.6 });
     });
-
     button.on('pointerout', () => {
       bg.clear();
-      bg.roundRect(0, 0, 140, 40, 8);
-      bg.fill('#4A90D9');
+      bg.roundRect(0, 0, 140, 40, 10);
+      bg.fill({ color: 0x4A90D9, alpha: 0.9 });
+      bg.roundRect(0, 0, 140, 40, 10);
+      bg.stroke({ width: 2, color: 0x6AB0F9, alpha: 0.5 });
     });
-
-    // Click effect
-    button.on('pointerdown', () => {
-      button.scale.set(0.95);
-    });
-
-    button.on('pointerup', () => {
-      button.scale.set(1.0);
-      if (this.onSurfaceClick) {
-        this.onSurfaceClick();
-      }
-    });
+    button.on('pointerdown', () => { button.scale.set(0.95); });
+    button.on('pointerup', () => { button.scale.set(1.0); if (this.onSurfaceClick) this.onSurfaceClick(); });
 
     return button;
   }
 
-  /**
-   * Create Checkpoint button (bottom-center).
-   */
   private createCheckpointButton(): Container {
     const button = new Container();
     button.eventMode = 'static';
     button.cursor = 'pointer';
-    button.visible = false; // Hidden by default
+    button.visible = false;
 
-    // Background
     const bg = new Graphics();
-    bg.roundRect(0, 0, 120, 36, 8);
-    bg.fill('#4CAF50');
+    bg.roundRect(0, 0, 120, 36, 10);
+    bg.fill({ color: 0x4CAF50, alpha: 0.9 });
+    bg.roundRect(0, 0, 120, 36, 10);
+    bg.stroke({ width: 2, color: 0x6CCF70, alpha: 0.5 });
     button.addChild(bg);
 
-    // Text
-    const style = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 14,
-      fill: '#FFFFFF',
-      fontWeight: 'bold'
-    });
+    const style = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 14, fill: '#FFFFFF', fontWeight: 'bold' });
     this.checkpointText = new Text({ text: '📍 0/0', style });
     this.checkpointText.anchor.set(0.5);
-    this.checkpointText.x = 60;
-    this.checkpointText.y = 18;
+    this.checkpointText.x = 60; this.checkpointText.y = 18;
     button.addChild(this.checkpointText);
 
-    // Hover effect
     button.on('pointerover', () => {
       bg.clear();
-      bg.roundRect(0, 0, 120, 36, 8);
-      bg.fill('#5CBF60');
+      bg.roundRect(0, 0, 120, 36, 10);
+      bg.fill({ color: 0x5CBF60, alpha: 0.95 });
+      bg.roundRect(0, 0, 120, 36, 10);
+      bg.stroke({ width: 2, color: 0x8CDF90, alpha: 0.6 });
     });
-
     button.on('pointerout', () => {
       bg.clear();
-      bg.roundRect(0, 0, 120, 36, 8);
-      bg.fill('#4CAF50');
+      bg.roundRect(0, 0, 120, 36, 10);
+      bg.fill({ color: 0x4CAF50, alpha: 0.9 });
+      bg.roundRect(0, 0, 120, 36, 10);
+      bg.stroke({ width: 2, color: 0x6CCF70, alpha: 0.5 });
     });
-
-    // Click effect
-    button.on('pointerdown', () => {
-      button.scale.set(0.95);
-    });
-
-    button.on('pointerup', () => {
-      button.scale.set(1.0);
-      if (this.onCheckpointClick) {
-        this.onCheckpointClick();
-      }
-    });
+    button.on('pointerdown', () => { button.scale.set(0.95); });
+    button.on('pointerup', () => { button.scale.set(1.0); if (this.onCheckpointClick) this.onCheckpointClick(); });
 
     return button;
   }
 
-  /**
-   * Create Inventory button (bottom-right).
-   */
-  private createInventoryButton(): Container {
-    const button = new Container();
-    button.eventMode = 'static';
-    button.cursor = 'pointer';
+  updateItems(inventory: (InventorySlot | null)[]): void {
+    this.itemTexts.forEach(t => {
+      this.itemsBarContainer.removeChild(t);
+      t.destroy();
+    });
+    this.itemTexts = [];
 
-    // Background
-    const bg = new Graphics();
-    bg.roundRect(0, 0, 120, 40, 8);
-    bg.fill('#8B6914');
-    button.addChild(bg);
+    let xPos = 0;
+    let totalValue = 0;
 
-    // Text
     const style = new TextStyle({
       fontFamily: 'Arial, sans-serif',
-      fontSize: 16,
+      fontSize: 13,
       fill: '#FFFFFF',
-      fontWeight: 'bold'
-    });
-    const text = new Text({ text: '📦 Items', style });
-    text.anchor.set(0.5);
-    text.x = 60;
-    text.y = 20;
-    button.addChild(text);
-
-    // Hover effect
-    button.on('pointerover', () => {
-      bg.clear();
-      bg.roundRect(0, 0, 120, 40, 8);
-      bg.fill('#9B7924');
+      dropShadow: { color: '#000000', blur: 2, angle: Math.PI / 4, distance: 1 }
     });
 
-    button.on('pointerout', () => {
-      bg.clear();
-      bg.roundRect(0, 0, 120, 40, 8);
-      bg.fill('#8B6914');
-    });
-
-    // Click effect
-    button.on('pointerdown', () => {
-      button.scale.set(0.95);
-    });
-
-    button.on('pointerup', () => {
-      button.scale.set(1.0);
-      if (this.onInventoryClick) {
-        this.onInventoryClick();
+    const itemMap = new Map<string, { qty: number; value: number; emoji: string; name: string }>();
+    for (const slot of inventory) {
+      if (!slot) continue;
+      const def = ITEMS[slot.itemType];
+      const existing = itemMap.get(slot.itemType);
+      if (existing) {
+        existing.qty += slot.quantity;
+      } else {
+        itemMap.set(slot.itemType, {
+          qty: slot.quantity,
+          value: def.value,
+          emoji: def.emoji,
+          name: def.name
+        });
       }
-    });
+    }
 
-    return button;
+    for (const [, item] of itemMap) {
+      const itemTotal = item.qty * item.value;
+      totalValue += itemTotal;
+
+      const txt = new Text({
+        text: `${item.emoji}x${item.qty} (${itemTotal}g)`,
+        style
+      });
+      txt.x = xPos;
+      txt.y = 0;
+      this.itemsBarContainer.addChild(txt);
+      this.itemTexts.push(txt);
+      xPos += txt.width + 12;
+    }
+
+    if (totalValue > 0) {
+      this.totalValueText.text = `| Total: ${totalValue.toLocaleString()}g`;
+      this.totalValueText.x = xPos;
+      this.totalValueText.y = 0;
+      this.totalValueText.visible = true;
+    } else {
+      this.totalValueText.visible = false;
+    }
   }
 
-  /**
-   * Update gold display with smooth rolling animation.
-   * Flashes green on increase, red on decrease.
-   *
-   * @param newAmount - New gold amount
-   */
   updateGold(newAmount: number): void {
     const oldTarget = this.targetGold;
     this.targetGold = newAmount;
-
-    // Flash effect on change
     if (newAmount > oldTarget) {
-      // Increase - flash green
       this.goldText.style.fill = '#00FF00';
-      setTimeout(() => {
-        this.goldText.style.fill = '#FFD700';
-      }, 200);
+      setTimeout(() => { this.goldText.style.fill = '#FFD700'; }, 200);
     } else if (newAmount < oldTarget) {
-      // Decrease - flash red
       this.goldText.style.fill = '#FF0000';
-      setTimeout(() => {
-        this.goldText.style.fill = '#FFD700';
-      }, 200);
+      setTimeout(() => { this.goldText.style.fill = '#FFD700'; }, 200);
     }
   }
 
-  /**
-   * Update depth display.
-   *
-   * @param depth - Current depth
-   */
   updateDepth(depth: number): void {
-    this.depthText.text = `Depth: ${depth}`;
+    const d = Math.floor(depth);
+    this.depthText.text = `Depth: ${d}`;
+
+    // Update layer name with ambient color
+    const layer = getLayerAtDepth(d);
+    this.layerText.text = layer.displayName;
+    this.layerText.style.fill = layer.ambientColor;
   }
 
-  /**
-   * Update inventory display with color coding.
-   *
-   * @param used - Number of used slots
-   * @param max - Maximum slots
-   */
-  updateInventory(used: number, max: number): void {
-    this.inventoryText.text = `Inventory: ${used} / ${max}`;
-
-    const percentage = used / max;
-
-    if (percentage >= 1.0) {
-      // Full - red with pulse
-      this.inventoryText.style.fill = '#FF4444';
-    } else if (percentage >= 0.8) {
-      // Nearly full - yellow
-      this.inventoryText.style.fill = '#FFEB3B';
-    } else {
-      // Normal - white
-      this.inventoryText.style.fill = '#FFFFFF';
-    }
+  updateInventory(_used: number, _max: number): void {
+    // No-op: replaced by items bar
   }
 
-  /**
-   * Update checkpoint button display.
-   * Shows "📍 {current}/{max}" and only visible when max > 0.
-   *
-   * @param current - Current number of saved checkpoints
-   * @param max - Maximum checkpoints allowed
-   */
   updateCheckpoints(current: number, max: number): void {
     this.checkpointText.text = `📍 ${current}/${max}`;
     this.checkpointButton.visible = max > 0;
   }
 
-  /**
-   * Show floating text that moves up and fades out.
-   *
-   * @param text - Text to display
-   * @param screenX - Screen X position
-   * @param screenY - Screen Y position
-   * @param color - Text color (hex string)
-   */
   showFloatingText(text: string, screenX: number, screenY: number, color: string): void {
     const style = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 16,
-      fontWeight: 'bold',
-      fill: color,
-      dropShadow: {
-        color: '#000000',
-        blur: 4,
-        angle: Math.PI / 4,
-        distance: 2
-      }
+      fontFamily: 'Arial, sans-serif', fontSize: 18, fontWeight: 'bold', fill: color,
+      dropShadow: { color: '#000000', blur: 4, angle: Math.PI / 4, distance: 2 }
     });
-
     const floatingText = new Text({ text, style });
     floatingText.anchor.set(0.5);
     floatingText.x = screenX;
     floatingText.y = screenY;
-
     this.container.addChild(floatingText);
-
-    this.floatingTexts.push({
-      text: floatingText,
-      vy: -1.5, // pixels per frame
-      lifetime: 800, // ms
-      elapsed: 0,
-      startAlpha: 1.0
-    });
+    this.floatingTexts.push({ text: floatingText, vy: -1.5, lifetime: 800, elapsed: 0, startAlpha: 1.0 });
   }
 
-  /**
-   * Set button visibility.
-   *
-   * @param button - Button identifier
-   * @param visible - Whether button should be visible
-   */
   setButtonVisibility(button: 'surface' | 'checkpoint' | 'inventory', visible: boolean): void {
     switch (button) {
-      case 'surface':
-        this.surfaceButton.visible = visible;
-        break;
-      case 'checkpoint':
-        this.checkpointButton.visible = visible;
-        break;
-      case 'inventory':
-        this.inventoryButton.visible = visible;
-        break;
+      case 'surface': this.surfaceButton.visible = visible; break;
+      case 'checkpoint': this.checkpointButton.visible = visible; break;
     }
   }
 
-  /**
-   * Set button click callbacks.
-   *
-   * @param button - Button identifier
-   * @param callback - Callback function
-   */
   setButtonCallback(button: 'surface' | 'checkpoint' | 'inventory', callback: () => void): void {
     switch (button) {
-      case 'surface':
-        this.onSurfaceClick = callback;
-        break;
-      case 'checkpoint':
-        this.onCheckpointClick = callback;
-        break;
-      case 'inventory':
-        this.onInventoryClick = callback;
-        break;
+      case 'surface': this.onSurfaceClick = callback; break;
+      case 'checkpoint': this.onCheckpointClick = callback; break;
     }
   }
 
-  /**
-   * Update HUD animations (called every frame).
-   *
-   * @param deltaMs - Time elapsed since last update in milliseconds
-   */
   update(deltaMs: number): void {
-    // Animate gold rolling
+    // Gold rolling
     if (Math.abs(this.targetGold - this.displayedGold) > 0.1) {
       this.displayedGold += (this.targetGold - this.displayedGold) * this.goldRollingSpeed;
-
-      // Format with commas
-      const formattedGold = Math.floor(this.displayedGold).toLocaleString();
-      this.goldText.text = `G ${formattedGold}`;
+      this.goldText.text = `G ${Math.floor(this.displayedGold).toLocaleString()}`;
     } else {
-      // Snap to target when close enough
       this.displayedGold = this.targetGold;
-      const formattedGold = Math.floor(this.displayedGold).toLocaleString();
-      this.goldText.text = `G ${formattedGold}`;
+      this.goldText.text = `G ${Math.floor(this.displayedGold).toLocaleString()}`;
     }
 
-    // Update floating texts
+    // Floating texts
     const toRemove: number[] = [];
-
     this.floatingTexts.forEach((ft, index) => {
       ft.elapsed += deltaMs;
-
-      // Move upward
       ft.text.y += ft.vy;
-
-      // Fade out
-      const progress = ft.elapsed / ft.lifetime;
-      ft.text.alpha = ft.startAlpha * (1 - progress);
-
-      // Mark for removal when done
-      if (ft.elapsed >= ft.lifetime) {
-        toRemove.push(index);
-      }
+      ft.text.alpha = ft.startAlpha * (1 - ft.elapsed / ft.lifetime);
+      if (ft.elapsed >= ft.lifetime) toRemove.push(index);
     });
-
-    // Remove dead floating texts
     toRemove.reverse().forEach(index => {
       const ft = this.floatingTexts[index];
       this.container.removeChild(ft.text);
       ft.text.destroy();
       this.floatingTexts.splice(index, 1);
     });
-
-    // Pulse inventory text when full
-    if (this.inventoryText.style.fill === '#FF4444') {
-      const pulsePhase = Date.now() * 0.003;
-      this.inventoryText.alpha = 0.7 + Math.sin(pulsePhase) * 0.3;
-    } else {
-      this.inventoryText.alpha = 1.0;
-    }
   }
 
-  /**
-   * Resize handler to reposition HUD elements.
-   *
-   * @param width - New screen width
-   * @param height - New screen height
-   */
   resize(width: number, height: number): void {
-    // Top-left: Gold
-    this.goldText.x = 10;
-    this.goldText.y = 10;
+    // Top bar background
+    this.topBarBg.clear();
+    this.topBarBg.rect(0, 0, width, 56);
+    this.topBarBg.fill({ color: 0x000000, alpha: 0.4 });
 
-    // Top-right: Depth
-    this.depthText.x = width - this.depthText.width - 10;
-    this.depthText.y = 10;
+    this.goldText.x = 12;
+    this.goldText.y = 8;
 
-    // Top-center: Inventory
-    this.inventoryText.x = width / 2 - this.inventoryText.width / 2;
-    this.inventoryText.y = 10;
+    this.depthText.x = width - this.depthText.width - 12;
+    this.depthText.y = 8;
+
+    // Layer name below depth
+    this.layerText.x = width - this.layerText.width - 12;
+    this.layerText.y = 28;
+
+    // Items bar below gold
+    this.itemsBarContainer.x = 12;
+    this.itemsBarContainer.y = 34;
 
     // Bottom-left: Surface button
     this.surfaceButton.x = 10;
-    this.surfaceButton.y = height - 50;
+    this.surfaceButton.y = height - 54;
 
     // Bottom-center: Checkpoint button
     this.checkpointButton.x = width / 2 - 60;
-    this.checkpointButton.y = height - 46;
-
-    // Bottom-right: Inventory button
-    this.inventoryButton.x = width - 130;
-    this.inventoryButton.y = height - 50;
+    this.checkpointButton.y = height - 50;
   }
 
-  /**
-   * Clean up the HUD.
-   */
   destroy(): void {
-    // Clean up floating texts
-    this.floatingTexts.forEach(ft => {
-      this.container.removeChild(ft.text);
-      ft.text.destroy();
-    });
+    this.floatingTexts.forEach(ft => { this.container.removeChild(ft.text); ft.text.destroy(); });
     this.floatingTexts = [];
-
-    // Destroy container
     this.app.stage.removeChild(this.container);
     this.container.destroy({ children: true });
   }

@@ -3,14 +3,13 @@ import { Game } from './game/Game';
 
 /**
  * Main entry point for the Deep Mine client.
- * Initializes PixiJS Application and starts the game.
+ * Shows splash screen, then initializes PixiJS and starts the game.
  */
 
-async function main() {
+async function startGame() {
   // Create PixiJS Application
   const app = new Application();
 
-  // Initialize the application with configuration
   await app.init({
     width: window.innerWidth,
     height: window.innerHeight,
@@ -20,7 +19,7 @@ async function main() {
     autoDensity: true
   });
 
-  // Append canvas to the body
+  // Replace canvas placeholder
   const canvas = document.getElementById('game-canvas') as HTMLCanvasElement;
   if (canvas && canvas.parentNode) {
     canvas.parentNode.replaceChild(app.canvas, canvas);
@@ -42,10 +41,35 @@ async function main() {
     game.update(ticker.deltaTime);
   });
 
-  console.log('🎮 Deep Mine client started!');
+  console.log('🎮 Deep Mine started!');
 }
 
-// Start the application
-main().catch((error) => {
-  console.error('Failed to start Deep Mine:', error);
-});
+function main() {
+  const splash = document.getElementById('splash');
+  const playBtn = document.getElementById('play-btn');
+
+  if (!splash || !playBtn) {
+    // No splash screen, start directly
+    startGame().catch(console.error);
+    return;
+  }
+
+  playBtn.addEventListener('click', () => {
+    // Fade out splash
+    splash.classList.add('hidden');
+
+    // Start game after fade
+    setTimeout(() => {
+      splash.remove();
+      document.body.style.background = '#000000';
+      startGame().catch(console.error);
+    }, 600);
+  });
+}
+
+// Start when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', main);
+} else {
+  main();
+}

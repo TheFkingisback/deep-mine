@@ -9,10 +9,11 @@ import { InventoryPanel } from '../ui/InventoryPanel';
 import { CheckpointReplacePanel } from '../ui/CheckpointReplacePanel';
 import { ExplosionEffect } from '../effects/ExplosionEffect';
 import { EventEffects } from '../effects/EventEffects';
+import { ParticleSystem } from '../effects/ParticleSystem';
 import { PlayerState, ChunkData, DropItem, Position, Block, BlockType } from '@shared/types';
 import { generateChunk } from '@shared/world-gen';
 import { getShovelDamage, getMaxDepth, getTorchRadius, getRopeSpeed, getMaxCheckpoints } from '@shared/equipment';
-import { rollLootDrop } from '@shared/layers';
+import { rollLootDrop, getLayerAtDepth } from '@shared/layers';
 import { createRNG } from '@shared/world-gen';
 import { rollEvent, applyEvent } from '@shared/events';
 import { calculateFullExplosion } from '@shared/tnt';
@@ -33,9 +34,13 @@ export class MiningScene {
   private itemDropRenderer: ItemDropRenderer;
   private lightingSystem: LightingSystem;
   private cameraSystem: CameraSystem;
+  private particleSystem: ParticleSystem;
   private hud: HUD;
   private inventoryPanel: InventoryPanel;
   private checkpointReplacePanel: CheckpointReplacePanel;
+
+  // Background
+  private bgGraphics: Graphics;
 
   // Game state
   private playerState: PlayerState;
@@ -46,6 +51,7 @@ export class MiningScene {
 
   // Input
   private clickHandler: (e: FederatedPointerEvent) => void;
+  private keyHandler!: (e: KeyboardEvent) => void;
 
   // RNG
   private rng: () => number;
@@ -64,10 +70,6 @@ export class MiningScene {
 
   // Ascent animation
   private isAscending = false;
-  private ascentStartDepth = 0;
-  private ascentProgress = 0;
-  private ascentSpeed = 0; // blocks per second
-  private ascentDuration = 0; // milliseconds
 
   // Callbacks
   private onSurfaceCallback: (() => void) | null = null;
@@ -82,8 +84,13 @@ export class MiningScene {
     this.container = new Container();
     this.app.stage.addChild(this.container);
 
+    // Create background gradient (behind blocks)
+    this.bgGraphics = new Graphics();
+    this.container.addChild(this.bgGraphics);
+
     // Create renderers and systems
     this.blockRenderer = new BlockRenderer(this.container);
+    this.particleSystem = new ParticleSystem(this.container);
     this.playerRenderer = new PlayerRenderer(this.app.stage); // Player in separate layer
     this.itemDropRenderer = new ItemDropRenderer(this.container);
     this.lightingSystem = new LightingSystem(this.app);
@@ -102,7 +109,6 @@ export class MiningScene {
 
     // Set up HUD callbacks
     this.hud.setButtonCallback('surface', () => this.handleSurfaceClick());
-    this.hud.setButtonCallback('inventory', () => this.handleInventoryClick());
     this.hud.setButtonCallback('checkpoint', () => this.handleCheckpointClick());
 
     // Set up input
@@ -189,7 +195,10 @@ export class MiningScene {
    * Set up keyboard controls for player movement and digging.
    */
   private setupKeyboardControls(): void {
-    window.addEventListener('keydown', (event) => {
+    this.keyHandler = (event: KeyboardEvent) => {
+      // Ignore key repeat - one action per key press only
+      if (event.repeat) return;
+
       // Ignore if player is stunned or ascending
       if (this.playerState.isStunned || this.isAscending) {
         return;
@@ -216,7 +225,8 @@ export class MiningScene {
         event.preventDefault();
         this.digInDirection(0, -1); // Up
       }
-    });
+    };
+    window.addEventListener('keydown', this.keyHandler);
   }
 
 
@@ -250,8 +260,7 @@ export class MiningScene {
     // Initialize HUD
     this.hud.updateGold(this.playerState.gold);
     this.hud.updateDepth(this.playerState.position.y);
-    const usedSlots = this.playerState.inventory.filter(slot => slot !== null).length;
-    this.hud.updateInventory(usedSlots, this.playerState.maxInventorySlots);
+    this.hud.updateItems(this.playerState.inventory);
     this.updateHUDCheckpoints();
 
     // Initial render
@@ -372,14 +381,14 @@ export class MiningScene {
    * If at surface: go to surface area (buy/sell)
    */
   private handleSurfaceClick(): void {
-    if (this.playerState.position.y <= 5) {
-      // At surface - go to surface area for buy/sell
+    if (this.playerState.position.y <= 1) {
+      // Already at surface - go to buy/sell
       console.log('🏔️ Going to surface area...');
       if (this.onSurfaceCallback) {
         this.onSurfaceCallback();
       }
     } else {
-      // Underground - ascend to surface
+      // Underground - ascend to surface with animation
       console.log('⬆️ Ascending to surface...');
       this.startAscent();
     }
@@ -511,6 +520,14 @@ export class MiningScene {
    */
   private destroyBlock(x: number, y: number, block: Block): void {
     console.log(`Block destroyed at (${x}, ${y})`);
+
+    // Emit dig burst particles at block world position
+    const layer = getLayerAtDepth(y);
+    const blockColor = parseInt(layer.color.replace('#', ''), 16);
+    this.particleSystem.emit(ParticleSystem.DIG_BURST(
+      { x: x * BLOCK_SIZE + BLOCK_SIZE / 2, y: y * BLOCK_SIZE + BLOCK_SIZE / 2 },
+      blockColor
+    ));
 
     // Handle TNT explosion
     if (block.type === BlockType.TNT) {
@@ -744,28 +761,86 @@ export class MiningScene {
   }
 
   /**
-   * Start ascent to surface animation.
+   * Start ascent to surface with rope animation.
    */
   private startAscent(): void {
     const currentDepth = this.playerState.position.y;
 
+    if (currentDepth <= 1) return; // Already at surface
+
     // Save last underground depth for rope descent
-    if (currentDepth > 5) {
-      this.playerState.maxDepthReached = Math.max(this.playerState.maxDepthReached, currentDepth);
-    }
+    this.playerState.maxDepthReached = Math.max(this.playerState.maxDepthReached, currentDepth);
 
-    // Teleport to surface
-    console.log(`⚡ Ascending to surface from depth ${currentDepth}`);
-    this.playerState.position.y = 1; // Surface level
-    this.playerState.isOnSurface = true;
+    const ropeSpeed = getRopeSpeed(this.playerState.equipment.rope);
+    const actualSpeed = ropeSpeed === -1 ? 50 : ropeSpeed; // blocks per second (-1 = instant = very fast)
+    const distance = currentDepth - 1; // target y=1
+    const duration = (distance / actualSpeed) * 1000; // ms
 
-    // Update camera
-    const playerWorldY = this.playerState.position.y * 40;
-    this.cameraSystem.setPosition(this.playerState.position.x * 40, playerWorldY);
+    console.log(`⬆️ Ascending from depth ${currentDepth} to surface at ${actualSpeed} blocks/sec (${(duration / 1000).toFixed(1)}s)`);
 
-    // Render
-    this.renderWorld();
-    this.hud.updateDepth(this.playerState.position.y);
+    this.isAscending = true;
+    const startY = currentDepth;
+    let elapsed = 0;
+
+    // Show ascending text
+    this.hud.showFloatingText('Ascending...', this.app.screen.width / 2, this.app.screen.height / 2, '#00FF00');
+
+    // Draw rope line above player
+    const ropeGraphic = new Graphics();
+    this.app.stage.addChild(ropeGraphic);
+
+    const ascentInterval = setInterval(() => {
+      elapsed += 16;
+      const progress = Math.min(elapsed / duration, 1);
+
+      // Ease-in-out for smooth movement
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      // Move player upward
+      this.playerState.position.y = startY - (distance * eased);
+
+      // Update camera to follow
+      const playerWorldX = this.playerState.position.x * 40;
+      const playerWorldY = this.playerState.position.y * 40;
+      this.cameraSystem.setPosition(playerWorldX, playerWorldY);
+
+      // Draw rope visual (line from player going up)
+      const screenCenterX = this.app.screen.width / 2;
+      const screenCenterY = this.app.screen.height / 2;
+      ropeGraphic.clear();
+      ropeGraphic.moveTo(screenCenterX, 0);
+      ropeGraphic.lineTo(screenCenterX, screenCenterY - 15);
+      ropeGraphic.stroke({ width: 3, color: 0x8B6914, alpha: 0.8 });
+
+      // Render
+      this.renderWorld();
+      this.hud.updateDepth(Math.floor(this.playerState.position.y));
+
+      if (progress >= 1) {
+        clearInterval(ascentInterval);
+        this.isAscending = false;
+        this.playerState.position.y = 1;
+        this.playerState.isOnSurface = true;
+        this.hud.updateDepth(1);
+
+        // Remove rope visual
+        this.app.stage.removeChild(ropeGraphic);
+        ropeGraphic.destroy();
+
+        console.log('✅ Reached surface!');
+
+        // Auto-transition to sell screen
+        if (this.onSurfaceCallback) {
+          setTimeout(() => {
+            if (this.onSurfaceCallback) {
+              this.onSurfaceCallback();
+            }
+          }, 300);
+        }
+      }
+    }, 16);
   }
 
   /**
@@ -843,34 +918,6 @@ export class MiningScene {
     }, 16);
   }
 
-  /**
-   * Update ascent animation (called from update loop).
-   */
-  private updateAscentAnimation(deltaMs: number): void {
-    if (!this.isAscending) return;
-
-    this.ascentProgress += deltaMs;
-    const progress = Math.min(this.ascentProgress / this.ascentDuration, 1);
-
-    // Update player depth
-    const targetDepth = 0; // Surface
-    this.playerState.position.y = this.ascentStartDepth - (this.ascentStartDepth * progress);
-
-    // Motion blur effect (slight camera shake)
-    if (Math.random() < 0.3) {
-      this.cameraSystem.shake(1);
-    }
-
-    // Complete ascent
-    if (progress >= 1) {
-      this.isAscending = false;
-      this.playerState.position.y = 0;
-      console.log('✅ Reached surface!');
-
-      // Fade to surface scene
-      this.fadeToSurface();
-    }
-  }
 
   /**
    * Handle random event results with visual effects.
@@ -1042,9 +1089,8 @@ export class MiningScene {
           this.itemDropRenderer.removeDrop(id);
           this.activeDrops.delete(id);
 
-          // Update HUD inventory
-          const usedSlots = this.playerState.inventory.filter(slot => slot !== null).length;
-          this.hud.updateInventory(usedSlots, this.playerState.maxInventorySlots);
+          // Update HUD items bar
+          this.hud.updateItems(this.playerState.inventory);
 
           // Show collection effect
           this.showFloatingText(
@@ -1115,36 +1161,66 @@ export class MiningScene {
   }
 
   /**
+   * Render depth-based background gradient behind blocks.
+   * Color transitions between layer ambient colors for atmospheric feel.
+   */
+  private renderBackground(): void {
+    this.bgGraphics.clear();
+
+    const sh = this.app.screen.height;
+    const offset = this.cameraSystem.getOffset();
+
+    // We need to know the world-Y range visible on screen
+    const topWorldY = -offset.y;
+    const botWorldY = topWorldY + sh;
+
+    // Draw gradient strips per ~4 block rows for performance
+    const stripHeight = BLOCK_SIZE * 4;
+    for (let worldY = topWorldY - stripHeight; worldY < botWorldY + stripHeight; worldY += stripHeight) {
+      const depth = Math.max(0, Math.floor(worldY / BLOCK_SIZE));
+      const layer = getLayerAtDepth(depth);
+      const ambientColor = parseInt(layer.ambientColor.replace('#', ''), 16);
+
+      // Darken ambient color for background (it should be subtle, behind blocks)
+      const r = Math.floor(((ambientColor >> 16) & 0xFF) * 0.12);
+      const g = Math.floor(((ambientColor >> 8) & 0xFF) * 0.12);
+      const b = Math.floor((ambientColor & 0xFF) * 0.12);
+      const bgColor = (r << 16) | (g << 8) | b;
+
+      // Draw strip in world coordinates
+      this.bgGraphics.rect(-2000, worldY, 4000, stripHeight);
+      this.bgGraphics.fill(bgColor);
+    }
+  }
+
+  /**
    * Render the world (blocks and player).
+   * Only renders blocks visible on screen for performance.
    */
   private renderWorld(): void {
-    // Collect all blocks for rendering
-    const allBlocks: Block[][] = [];
+    // Render background gradient
+    this.renderBackground();
 
-    // Group blocks by X coordinate
-    const blocksByX: Map<number, Block[]> = new Map();
+    // Get visible block range from camera
+    const visible = this.cameraSystem.getVisibleBlockRange();
 
-    this.worldBlocks.forEach(block => {
-      if (!blocksByX.has(block.x)) {
-        blocksByX.set(block.x, []);
+    // Collect ONLY visible blocks
+    const visibleBlocks: Block[][] = [];
+    for (let x = visible.startX; x <= visible.endX; x++) {
+      const column: Block[] = [];
+      for (let y = visible.startY; y <= visible.endY; y++) {
+        const block = this.worldBlocks.get(`${x},${y}`);
+        if (block) {
+          column.push(block);
+        }
       }
-      blocksByX.get(block.x)!.push(block);
-    });
-
-    // Convert to 2D array
-    const minX = Math.min(...Array.from(blocksByX.keys()));
-    const maxX = Math.max(...Array.from(blocksByX.keys()));
-
-    for (let x = minX; x <= maxX; x++) {
-      const column = blocksByX.get(x) || [];
-      column.sort((a, b) => a.y - b.y);
-      allBlocks.push(column);
+      visibleBlocks.push(column);
     }
 
-    // Render blocks
+    // Render only visible blocks
     const torchRadius = getTorchRadius(this.playerState.equipment.torch);
     this.blockRenderer.renderChunk(
-      allBlocks,
+      visibleBlocks,
       0,
       0,
       this.playerState.position,
@@ -1160,11 +1236,6 @@ export class MiningScene {
     const screenX = this.app.screen.width / 2;
     const screenY = this.app.screen.height / 2;
     this.playerRenderer.setPosition(screenX, screenY);
-
-    // DEBUG: Log positions
-    const playerWorldX = this.playerState.position.x * 40;
-    const playerWorldY = this.playerState.position.y * 40;
-    console.log(`🎯 Player world: (${playerWorldX}, ${playerWorldY}) | Screen: (${screenX}, ${screenY}) | Offset: (${offset.x}, ${offset.y})`);
 
     // Update lighting position (follows player at screen center)
     this.lightingSystem.updatePosition(screenX, screenY);
@@ -1235,15 +1306,17 @@ export class MiningScene {
     // Update player launch animation
     this.updatePlayerLaunch(deltaMs);
 
-    // Update ascent animation
-    this.updateAscentAnimation(deltaMs);
-
-    // Update camera
-    this.updateCamera(deltaMs);
+    // Update camera (skip during ascent/descent - those control camera directly)
+    if (!this.isAscending) {
+      this.updateCamera(deltaMs);
+    }
 
     // Update item drop renderer with camera offset
     const cameraOffset = this.cameraSystem.getOffset();
     this.itemDropRenderer.update(deltaMs, cameraOffset);
+
+    // Update particle system
+    this.particleSystem.update(deltaMs);
 
     // Update player renderer
     this.playerRenderer.update(delta);
@@ -1258,8 +1331,8 @@ export class MiningScene {
     // Update inventory panel
     this.inventoryPanel.update(deltaMs);
 
-    // Apply gravity (only if not launching)
-    if (!this.isLaunching) {
+    // Apply gravity (skip during launch and ascent/descent animations)
+    if (!this.isLaunching && !this.isAscending) {
       this.applyGravity();
     }
 
@@ -1285,7 +1358,9 @@ export class MiningScene {
    */
   destroy(): void {
     this.app.stage.off('pointerdown', this.clickHandler);
+    window.removeEventListener('keydown', this.keyHandler);
     this.blockRenderer.clear();
+    this.particleSystem.destroy();
     this.playerRenderer.destroy();
     this.itemDropRenderer.destroy();
     this.lightingSystem.destroy();

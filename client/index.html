@@ -4,18 +4,16 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Deep Mine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Fredoka:wght@600;700&display=swap" rel="stylesheet">
   <style>
-    * {
-      margin: 0;
-      padding: 0;
-      box-sizing: border-box;
-    }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
 
     html, body {
       width: 100%;
       height: 100%;
       overflow: hidden;
-      background-color: #000000;
+      background-color: #1a1229;
     }
 
     body {
@@ -24,17 +22,204 @@
       align-items: center;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       -webkit-font-smoothing: antialiased;
-      -moz-osx-font-smoothing: grayscale;
     }
 
-    #game-canvas {
-      display: block;
-      width: 100%;
-      height: 100%;
+    #game-canvas { display: block; width: 100%; height: 100%; }
+
+    /* === SPLASH SCREEN === */
+    #splash {
+      position: fixed; inset: 0; z-index: 1000;
+      display: flex; flex-direction: column;
+      justify-content: center; align-items: center;
+      background: #1a1229;
+      cursor: pointer;
+      transition: opacity 0.6s ease;
     }
+    #splash.hidden { opacity: 0; pointer-events: none; }
+
+    /* Confetti */
+    .confetti {
+      position: absolute; border-radius: 2px;
+      animation: confettiFall linear infinite; z-index: 10; opacity: 0;
+    }
+    @keyframes confettiFall {
+      0%   { transform: translateY(-80px) rotate(0deg); opacity: 0; }
+      8%   { opacity: 1; }
+      100% { transform: translateY(100vh) rotate(800deg); opacity: 0; }
+    }
+    .confetti:nth-child(1)  { left: 6%;  width: 10px; height: 6px; background: #ff8c00; animation-duration: 2.8s; animation-delay: 0s; }
+    .confetti:nth-child(2)  { left: 14%; width: 6px;  height: 10px; background: #ffb347; animation-duration: 3.2s; animation-delay: 0.3s; }
+    .confetti:nth-child(3)  { left: 22%; width: 8px;  height: 8px; background: #ff6600; animation-duration: 2.5s; animation-delay: 0.1s; }
+    .confetti:nth-child(4)  { left: 32%; width: 10px; height: 5px; background: #ffc04d; animation-duration: 3.0s; animation-delay: 0.5s; }
+    .confetti:nth-child(5)  { left: 42%; width: 8px;  height: 8px; background: #ff8c00; animation-duration: 2.6s; animation-delay: 0.2s; }
+    .confetti:nth-child(6)  { left: 52%; width: 5px;  height: 10px; background: #ffb347; animation-duration: 3.1s; animation-delay: 0.4s; }
+    .confetti:nth-child(7)  { left: 60%; width: 8px;  height: 8px; background: #ff6600; animation-duration: 2.7s; animation-delay: 0.6s; }
+    .confetti:nth-child(8)  { left: 70%; width: 10px; height: 6px; background: #ffc04d; animation-duration: 2.9s; animation-delay: 0.15s; }
+    .confetti:nth-child(9)  { left: 80%; width: 8px;  height: 8px; background: #ff8c00; animation-duration: 3.3s; animation-delay: 0.35s; }
+    .confetti:nth-child(10) { left: 88%; width: 6px;  height: 10px; background: #ff6600; animation-duration: 2.4s; animation-delay: 0.55s; }
+    .confetti:nth-child(11) { left: 18%; width: 4px;  height: 4px; background: #fff3e0; animation-duration: 3.0s; animation-delay: 0.7s; border-radius: 50%; }
+    .confetti:nth-child(12) { left: 48%; width: 4px;  height: 4px; background: #fff3e0; animation-duration: 2.8s; animation-delay: 0.45s; border-radius: 50%; }
+    .confetti:nth-child(13) { left: 75%; width: 9px;  height: 5px; background: #ffc04d; animation-duration: 3.2s; animation-delay: 0.25s; }
+    .confetti:nth-child(14) { left: 38%; width: 9px;  height: 5px; background: #ff6600; animation-duration: 2.6s; animation-delay: 0.8s; }
+    .confetti:nth-child(15) { left: 55%; width: 7px;  height: 7px; background: #ff8c00; animation-duration: 2.9s; animation-delay: 0.9s; }
+    .confetti:nth-child(16) { left: 10%; width: 5px;  height: 9px; background: #ffb347; animation-duration: 3.4s; animation-delay: 0.65s; }
+
+    /* Badge */
+    .badge-wrapper {
+      position: relative; width: 300px; height: 300px;
+      display: flex; justify-content: center; align-items: center;
+      animation: badgeBounce 3s ease-in-out infinite;
+    }
+    @keyframes badgeBounce { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+
+    .badge-glow {
+      position: absolute; width: 280px; height: 280px; border-radius: 50%;
+      background: radial-gradient(circle, rgba(255,140,0,0.3) 0%, rgba(255,100,0,0.1) 40%, transparent 70%);
+      animation: glowPulse 2s ease-in-out infinite alternate;
+    }
+    @keyframes glowPulse { 0% { transform: scale(1); opacity: 0.6; } 100% { transform: scale(1.2); opacity: 1; } }
+
+    .starburst { position: absolute; width: 260px; height: 260px; filter: drop-shadow(0 6px 35px rgba(255,120,0,0.55)); }
+    .starburst svg { width: 100%; height: 100%; animation: starSpin 40s linear infinite; }
+    @keyframes starSpin { to { transform: rotate(360deg); } }
+
+    .inner-circle {
+      position: absolute; width: 180px; height: 180px; border-radius: 50%;
+      background: linear-gradient(145deg, #ff9f1c, #e06b00);
+      box-shadow: inset 0 -8px 16px rgba(0,0,0,0.25), inset 0 8px 16px rgba(255,230,160,0.2), 0 0 50px rgba(255,140,0,0.4);
+      display: flex; justify-content: center; align-items: center; overflow: hidden;
+    }
+    .inner-circle::before {
+      content: ''; position: absolute; top: -15px; left: -10px;
+      width: 110px; height: 50px; background: rgba(255,255,255,0.12);
+      border-radius: 50%; transform: rotate(-15deg);
+    }
+
+    .icon-svg { position: relative; z-index: 3; }
+    .pickaxe-group { animation: pickSwing 1.8s ease-in-out infinite; transform-origin: 75px 85px; }
+    @keyframes pickSwing { 0%, 100% { transform: rotate(0deg); } 35% { transform: rotate(-18deg); } 50% { transform: rotate(-18deg); } 70% { transform: rotate(5deg); } }
+    .impact { animation: impactFlash 1.8s ease-in-out infinite; }
+    @keyframes impactFlash { 0%, 30%, 100% { opacity: 0; transform: scale(0.5); } 50%, 55% { opacity: 1; transform: scale(1); } 70% { opacity: 0; transform: scale(1.3); } }
+
+    .sparkle { position: absolute; z-index: 6; animation: sparklePop 1.6s ease-in-out infinite; }
+    .sparkle:nth-of-type(1) { top: 8%;  right: 12%; animation-delay: 0s; }
+    .sparkle:nth-of-type(2) { bottom: 14%; left: 8%; animation-delay: 0.5s; }
+    .sparkle:nth-of-type(3) { top: 22%; left: 6%;  animation-delay: 1.0s; }
+    .sparkle:nth-of-type(4) { bottom: 8%; right: 15%; animation-delay: 0.3s; }
+    @keyframes sparklePop { 0%, 100% { transform: scale(0.4); opacity: 0.2; } 50% { transform: scale(1.1); opacity: 1; } }
+
+    /* Title */
+    .title-area { margin-top: 16px; text-align: center; z-index: 10; }
+    .title-area h1 {
+      font-family: 'Bungee', cursive; font-size: 2.4rem; color: #ff9f1c;
+      text-shadow: 0 3px 0 #c46600, 0 6px 15px rgba(255,140,0,0.4); letter-spacing: 4px;
+    }
+    .title-area .subtitle {
+      font-family: 'Fredoka', sans-serif; font-weight: 600; font-size: 0.9rem;
+      color: #ffb347; letter-spacing: 6px; text-transform: uppercase; margin-top: 4px; opacity: 0.8;
+    }
+
+    /* Play button */
+    .play-btn {
+      margin-top: 28px; z-index: 10;
+      font-family: 'Bungee', cursive; font-size: 1.2rem; color: #1a1229;
+      background: linear-gradient(145deg, #ffd166, #ff9f1c); border: none; border-radius: 50px;
+      padding: 14px 48px; cursor: pointer; letter-spacing: 3px;
+      box-shadow: 0 4px 20px rgba(255,140,0,0.5), 0 2px 0 #c46600;
+      animation: btnPulse 2s ease-in-out infinite;
+      transition: transform 0.15s;
+    }
+    .play-btn:hover { transform: scale(1.08); }
+    .play-btn:active { transform: scale(0.95); }
+    @keyframes btnPulse { 0%, 100% { box-shadow: 0 4px 20px rgba(255,140,0,0.5); } 50% { box-shadow: 0 4px 35px rgba(255,140,0,0.8); } }
   </style>
 </head>
 <body>
+  <!-- SPLASH SCREEN -->
+  <div id="splash">
+    <div class="confetti"></div><div class="confetti"></div><div class="confetti"></div>
+    <div class="confetti"></div><div class="confetti"></div><div class="confetti"></div>
+    <div class="confetti"></div><div class="confetti"></div><div class="confetti"></div>
+    <div class="confetti"></div><div class="confetti"></div><div class="confetti"></div>
+    <div class="confetti"></div><div class="confetti"></div><div class="confetti"></div>
+    <div class="confetti"></div>
+
+    <div class="badge-wrapper">
+      <div class="badge-glow"></div>
+      <svg class="sparkle" width="28" height="28" viewBox="0 0 28 28"><polygon points="14,0 17,10 28,10 19,17 22,28 14,21 6,28 9,17 0,10 11,10" fill="#ffd166"/></svg>
+      <svg class="sparkle" width="22" height="22" viewBox="0 0 28 28"><polygon points="14,0 17,10 28,10 19,17 22,28 14,21 6,28 9,17 0,10 11,10" fill="#ffb347"/></svg>
+      <svg class="sparkle" width="18" height="18" viewBox="0 0 28 28"><polygon points="14,0 17,10 28,10 19,17 22,28 14,21 6,28 9,17 0,10 11,10" fill="#fff3e0"/></svg>
+      <svg class="sparkle" width="20" height="20" viewBox="0 0 28 28"><polygon points="14,0 17,10 28,10 19,17 22,28 14,21 6,28 9,17 0,10 11,10" fill="#ffc04d"/></svg>
+
+      <div class="starburst">
+        <svg viewBox="0 0 300 300" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="burstGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffb347"/>
+              <stop offset="50%" stop-color="#ff8c00"/>
+              <stop offset="100%" stop-color="#e06500"/>
+            </linearGradient>
+          </defs>
+          <polygon points="150,8 165,60 195,18 185,72 225,40 205,88 258,70 222,105 285,105 238,125 290,150 238,175 285,195 222,195 258,230 205,212 225,260 185,228 195,282 165,240 150,292 135,240 105,282 115,228 75,260 95,212 42,230 78,195 15,195 62,175 10,150 62,125 15,105 78,105 42,70 95,88 75,40 115,72 105,18 135,60" fill="url(#burstGrad)" opacity="0.9"/>
+        </svg>
+      </div>
+
+      <div class="inner-circle">
+        <svg class="icon-svg" width="130" height="130" viewBox="0 0 150 150" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <linearGradient id="handleGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#8B5A2B"/><stop offset="50%" stop-color="#A0724B"/><stop offset="100%" stop-color="#6B3A1A"/>
+            </linearGradient>
+            <linearGradient id="steelGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#e8e8e8"/><stop offset="40%" stop-color="#c0c8d0"/><stop offset="100%" stop-color="#8899aa"/>
+            </linearGradient>
+            <linearGradient id="gemOrange" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffd700"/><stop offset="50%" stop-color="#ff8c00"/><stop offset="100%" stop-color="#cc5500"/>
+            </linearGradient>
+            <linearGradient id="gemGold" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stop-color="#ffe066"/><stop offset="60%" stop-color="#ffb700"/><stop offset="100%" stop-color="#cc8800"/>
+            </linearGradient>
+          </defs>
+          <g class="pickaxe-group">
+            <rect x="42" y="30" width="80" height="14" rx="7" fill="url(#handleGrad)" transform="rotate(-40, 75, 37)" stroke="#5a3a1a" stroke-width="1"/>
+            <rect x="72" y="56" width="14" height="10" rx="2" fill="#A08060" transform="rotate(-40, 79, 61)" opacity="0.5"/>
+            <path d="M36,48 Q18,28 10,14 Q8,10 12,8 L26,5 Q30,4 32,8 Q38,24 42,42 Z" fill="url(#steelGrad)" stroke="#aabbcc" stroke-width="0.8"/>
+            <path d="M48,36 Q28,18 14,10 Q10,8 8,12 L5,26 Q4,30 8,32 Q24,38 42,42 Z" fill="url(#steelGrad)" stroke="#aabbcc" stroke-width="0.8"/>
+            <path d="M20,12 Q24,8 28,7 L26,14 Z" fill="rgba(255,255,255,0.4)"/>
+          </g>
+          <g class="impact" transform="translate(18, 50)">
+            <line x1="0" y1="0" x2="-12" y2="8" stroke="#ffd700" stroke-width="2.5" stroke-linecap="round"/>
+            <line x1="0" y1="0" x2="-8" y2="-10" stroke="#ff8c00" stroke-width="2" stroke-linecap="round"/>
+            <line x1="0" y1="0" x2="-14" y2="-2" stroke="#ffb347" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="-16" cy="10" r="2.5" fill="#ffd700"/><circle cx="-12" cy="-14" r="2" fill="#ff8c00"/>
+          </g>
+          <g transform="translate(90, 95)">
+            <path d="M0,-32 L28,-8 L18,32 L-18,32 L-28,-8 Z" fill="url(#gemOrange)" stroke="#cc5500" stroke-width="1.2"/>
+            <path d="M0,-32 L28,-8 L0,0 L-28,-8 Z" fill="rgba(255,255,255,0.18)"/>
+            <path d="M0,0 L28,-8 L18,32 Z" fill="rgba(0,0,0,0.12)"/>
+            <path d="M0,-32 L-8,-8 L8,-8 Z" fill="rgba(255,255,255,0.25)"/>
+            <circle cx="-10" cy="-14" r="3.5" fill="white" opacity="0.7"><animate attributeName="opacity" values="0.7;0.2;0.7" dur="1.8s" repeatCount="indefinite"/></circle>
+          </g>
+          <g transform="translate(52, 115)">
+            <path d="M0,-16 L14,-4 L9,16 L-9,16 L-14,-4 Z" fill="url(#gemGold)" stroke="#b8860b" stroke-width="0.8"/>
+            <path d="M0,-16 L14,-4 L0,0 L-14,-4 Z" fill="rgba(255,255,255,0.2)"/>
+            <circle cx="-4" cy="-6" r="2" fill="white" opacity="0.5"><animate attributeName="opacity" values="0.5;0.15;0.5" dur="2s" repeatCount="indefinite"/></circle>
+          </g>
+          <circle cx="70" cy="138" r="5" fill="#ffb700" stroke="#b8860b" stroke-width="0.8"><animate attributeName="r" values="5;5.5;5" dur="2s" repeatCount="indefinite"/></circle>
+          <circle cx="112" cy="140" r="4" fill="#ffc840" stroke="#b8860b" stroke-width="0.8"/>
+          <circle cx="88" cy="145" r="3.5" fill="#ffd166" stroke="#b8860b" stroke-width="0.6"/>
+        </svg>
+      </div>
+    </div>
+
+    <div class="title-area">
+      <h1>DEEP MINE</h1>
+      <div class="subtitle">dig deep, strike gold</div>
+    </div>
+
+    <button class="play-btn" id="play-btn">PLAY</button>
+  </div>
+
   <canvas id="game-canvas"></canvas>
   <script type="module" src="/src/main.ts"></script>
 </body>

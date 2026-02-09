@@ -22,6 +22,8 @@ export class PlayerRenderer {
   private shovel: Graphics;
   private torch: Graphics;
   private torchGlow: Graphics;
+  private leftLeg: Graphics;
+  private rightLeg: Graphics;
 
   // Animation state
   private currentAnimation: 'idle' | 'dig' | 'stun' | 'celebration' | null = null;
@@ -46,13 +48,15 @@ export class PlayerRenderer {
     [EquipmentSlot.ROPE]: 1
   };
 
-  // Character dimensions
-  private readonly headRadius = 7;
-  private readonly bodyWidth = 16;
-  private readonly bodyHeight = 14;
-  private readonly eyeRadius = 1.5;
-  private readonly armWidth = 4;
-  private readonly armHeight = 10;
+  // Character dimensions (bigger for full body visibility)
+  private readonly headRadius = 10;
+  private readonly bodyWidth = 22;
+  private readonly bodyHeight = 20;
+  private readonly eyeRadius = 2;
+  private readonly armWidth = 6;
+  private readonly armHeight = 14;
+  private readonly legWidth = 7;
+  private readonly legHeight = 10;
 
   constructor(stage: Container) {
     this.container = new Container();
@@ -71,10 +75,14 @@ export class PlayerRenderer {
     this.shovel = new Graphics();
     this.torch = new Graphics();
     this.torchGlow = new Graphics();
+    this.leftLeg = new Graphics();
+    this.rightLeg = new Graphics();
 
     // Add parts to character container (order matters for layering)
     this.characterContainer.addChild(this.torchGlow);
     this.characterContainer.addChild(this.torch);
+    this.characterContainer.addChild(this.leftLeg);
+    this.characterContainer.addChild(this.rightLeg);
     this.characterContainer.addChild(this.leftArm);
     this.characterContainer.addChild(this.shovel);
     this.characterContainer.addChild(this.body);
@@ -106,76 +114,203 @@ export class PlayerRenderer {
     this.shovel.clear();
     this.torch.clear();
     this.torchGlow.clear();
+    this.leftLeg.clear();
+    this.rightLeg.clear();
 
-    // Draw head (PixiJS v8)
+    // === HEAD ===
+    // Head shadow (behind head for depth)
+    this.head.circle(0.5, 0.5, this.headRadius);
+    this.head.fill({ color: 0xCC9977, alpha: 0.5 });
+    // Main head
     this.head.circle(0, 0, this.headRadius);
-    this.head.fill(0xFFD5B8); // Skin color
-    this.head.y = -18;
+    this.head.fill(0xFFD5B8);
+    // Cheek highlight
+    this.head.circle(-3, 2, 3);
+    this.head.fill({ color: 0xFFE8D8, alpha: 0.4 });
+    this.head.y = -28;
 
-    // Draw eyes (big Pixar-style)
-    const eyeOffsetX = 3;
-    const eyeOffsetY = -18;
-
-    this.leftEye.circle(-eyeOffsetX, eyeOffsetY, this.eyeRadius);
+    // === EYES (big Pixar-style) ===
+    // White sclera
+    this.leftEye.circle(-4, -28, this.eyeRadius + 1.5);
+    this.leftEye.fill(0xFFFFFF);
+    this.leftEye.circle(-4, -28, this.eyeRadius + 1.5);
+    this.leftEye.stroke({ width: 0.5, color: 0xCCCCCC });
+    // Iris
+    this.leftEye.circle(-4, -28, this.eyeRadius);
+    this.leftEye.fill(0x4466AA);
+    // Pupil
+    this.leftEye.circle(-4, -28, this.eyeRadius * 0.6);
     this.leftEye.fill(0x000000);
+    // Eye shine
+    this.leftEye.circle(-3, -29, 1);
+    this.leftEye.fill(0xFFFFFF);
 
-    this.rightEye.circle(eyeOffsetX, eyeOffsetY, this.eyeRadius);
+    this.rightEye.circle(4, -28, this.eyeRadius + 1.5);
+    this.rightEye.fill(0xFFFFFF);
+    this.rightEye.circle(4, -28, this.eyeRadius + 1.5);
+    this.rightEye.stroke({ width: 0.5, color: 0xCCCCCC });
+    this.rightEye.circle(4, -28, this.eyeRadius);
+    this.rightEye.fill(0x4466AA);
+    this.rightEye.circle(4, -28, this.eyeRadius * 0.6);
     this.rightEye.fill(0x000000);
+    this.rightEye.circle(5, -29, 1);
+    this.rightEye.fill(0xFFFFFF);
 
-    // Draw body (color based on vest tier)
-    const vestColor = this.getVestColor();
-    this.body.roundRect(
-      -this.bodyWidth / 2,
-      -this.bodyHeight / 2,
-      this.bodyWidth,
-      this.bodyHeight,
-      3
-    );
-    this.body.fill(vestColor);
-    this.body.y = -4;
-
-    // Draw helmet (color based on helmet tier)
+    // === HELMET ===
     const helmetColor = this.getHelmetColor();
-    this.helmet.arc(0, -18, this.headRadius + 2, Math.PI, 0);
-    this.helmet.stroke({ width: 3, color: helmetColor });
-    this.helmet.y = 0;
+    const helmetDark = this.darkenColor(helmetColor, 0.3);
+    const helmetLight = this.lightenColor(helmetColor, 0.3);
+    // Helmet dome
+    this.helmet.arc(0, -28, this.headRadius + 3, Math.PI, 0);
+    this.helmet.fill(helmetColor);
+    // Highlight strip on top
+    this.helmet.arc(0, -28, this.headRadius + 1, Math.PI + 0.3, -0.3);
+    this.helmet.fill({ color: helmetLight, alpha: 0.4 });
+    // Helmet brim with depth
+    this.helmet.rect(-this.headRadius - 4, -28, (this.headRadius + 4) * 2, 4);
+    this.helmet.fill(helmetDark);
+    this.helmet.rect(-this.headRadius - 4, -28, (this.headRadius + 4) * 2, 2);
+    this.helmet.fill(helmetColor);
+    // Headlamp mount (small circle on front)
+    this.helmet.circle(0, -30, 2.5);
+    this.helmet.fill(0xCCCCCC);
+    this.helmet.circle(0, -30, 1.5);
+    this.helmet.fill(0xFFFF88);
 
-    // Draw arms
-    const armColor = 0xFFD5B8; // Skin color
-    this.leftArm.roundRect(0, 0, this.armWidth, this.armHeight, 2);
+    // === BODY (vest) ===
+    const vestColor = this.getVestColor();
+    const vestDark = this.darkenColor(vestColor, 0.25);
+    const vestLight = this.lightenColor(vestColor, 0.2);
+    // Body shadow
+    this.body.roundRect(-this.bodyWidth / 2 + 1, -this.bodyHeight / 2 + 1, this.bodyWidth, this.bodyHeight, 4);
+    this.body.fill({ color: 0x000000, alpha: 0.2 });
+    // Main body
+    this.body.roundRect(-this.bodyWidth / 2, -this.bodyHeight / 2, this.bodyWidth, this.bodyHeight, 4);
+    this.body.fill(vestColor);
+    // Vest highlight (left edge)
+    this.body.roundRect(-this.bodyWidth / 2, -this.bodyHeight / 2, 4, this.bodyHeight, 4);
+    this.body.fill({ color: vestLight, alpha: 0.3 });
+    // Vest shadow (right edge)
+    this.body.roundRect(this.bodyWidth / 2 - 4, -this.bodyHeight / 2, 4, this.bodyHeight, 4);
+    this.body.fill({ color: vestDark, alpha: 0.3 });
+    // Belt
+    this.body.rect(-this.bodyWidth / 2, this.bodyHeight / 2 - 5, this.bodyWidth, 5);
+    this.body.fill(0x5a3a1a);
+    // Belt buckle
+    this.body.rect(-2, this.bodyHeight / 2 - 4, 4, 3);
+    this.body.fill(0xCCAA44);
+    this.body.y = -8;
+
+    // === LEGS ===
+    const pantsColor = 0x4A6FA5;
+    const pantsDark = this.darkenColor(pantsColor, 0.2);
+    this.leftLeg.roundRect(0, 0, this.legWidth, this.legHeight, 2);
+    this.leftLeg.fill(pantsColor);
+    // Inner shadow
+    this.leftLeg.roundRect(this.legWidth - 2, 0, 2, this.legHeight, 1);
+    this.leftLeg.fill({ color: pantsDark, alpha: 0.4 });
+    // Boot
+    this.leftLeg.roundRect(-1, this.legHeight - 4, this.legWidth + 2, 5, 2);
+    this.leftLeg.fill(0x3a2510);
+    // Boot highlight
+    this.leftLeg.roundRect(-1, this.legHeight - 4, this.legWidth + 2, 2, 1);
+    this.leftLeg.fill({ color: 0x5a4530, alpha: 0.5 });
+    this.leftLeg.x = -this.legWidth - 1;
+    this.leftLeg.y = 2;
+
+    this.rightLeg.roundRect(0, 0, this.legWidth, this.legHeight, 2);
+    this.rightLeg.fill(pantsColor);
+    this.rightLeg.roundRect(0, 0, 2, this.legHeight, 1);
+    this.rightLeg.fill({ color: pantsDark, alpha: 0.4 });
+    this.rightLeg.roundRect(-1, this.legHeight - 4, this.legWidth + 2, 5, 2);
+    this.rightLeg.fill(0x3a2510);
+    this.rightLeg.roundRect(-1, this.legHeight - 4, this.legWidth + 2, 2, 1);
+    this.rightLeg.fill({ color: 0x5a4530, alpha: 0.5 });
+    this.rightLeg.x = 1;
+    this.rightLeg.y = 2;
+
+    // === ARMS ===
+    const armColor = 0xFFD5B8;
+    const armDark = 0xDDB598;
+    this.leftArm.roundRect(0, 0, this.armWidth, this.armHeight, 3);
     this.leftArm.fill(armColor);
-    this.leftArm.x = -this.bodyWidth / 2 - 2;
-    this.leftArm.y = -8;
+    // Arm shadow
+    this.leftArm.roundRect(this.armWidth - 2, 0, 2, this.armHeight, 2);
+    this.leftArm.fill({ color: armDark, alpha: 0.4 });
+    this.leftArm.x = -this.bodyWidth / 2 - this.armWidth + 1;
+    this.leftArm.y = -16;
 
-    this.rightArm.roundRect(0, 0, this.armWidth, this.armHeight, 2);
+    this.rightArm.roundRect(0, 0, this.armWidth, this.armHeight, 3);
     this.rightArm.fill(armColor);
-    this.rightArm.x = this.bodyWidth / 2 - 2;
-    this.rightArm.y = -8;
+    this.rightArm.roundRect(0, 0, 2, this.armHeight, 2);
+    this.rightArm.fill({ color: armDark, alpha: 0.4 });
+    this.rightArm.x = this.bodyWidth / 2 - 1;
+    this.rightArm.y = -16;
 
-    // Draw shovel (color based on shovel tier)
+    // === PICKAXE (held by right arm) ===
     const shovelColor = this.getShovelColor();
-    this.shovel.moveTo(0, 0);
-    this.shovel.lineTo(0, 8);
-    this.shovel.stroke({ width: 3, color: shovelColor });
-    this.shovel.rect(-3, 8, 6, 4);
+    const shovelDark = this.darkenColor(shovelColor, 0.3);
+    // Handle (wooden stick with grain)
+    this.shovel.moveTo(0, -2);
+    this.shovel.lineTo(16, -18);
+    this.shovel.stroke({ width: 3.5, color: 0x6B4226 });
+    this.shovel.moveTo(0, -2);
+    this.shovel.lineTo(16, -18);
+    this.shovel.stroke({ width: 2, color: 0x8B5A2B });
+    // Metal head joint
+    this.shovel.circle(16, -18, 2.5);
+    this.shovel.fill(shovelDark);
+    // Pick blade (forward)
+    this.shovel.moveTo(16, -18);
+    this.shovel.lineTo(27, -22);
+    this.shovel.lineTo(27, -20);
+    this.shovel.lineTo(16, -17);
+    this.shovel.closePath();
     this.shovel.fill(shovelColor);
-    this.shovel.x = this.bodyWidth / 2;
-    this.shovel.y = 0;
+    this.shovel.moveTo(16, -18);
+    this.shovel.lineTo(27, -22);
+    this.shovel.stroke({ width: 1, color: shovelDark });
+    // Pick spike (back)
+    this.shovel.moveTo(16, -18);
+    this.shovel.lineTo(9, -24);
+    this.shovel.stroke({ width: 3, color: shovelColor });
+    this.shovel.moveTo(16, -18);
+    this.shovel.lineTo(9, -24);
+    this.shovel.stroke({ width: 1.5, color: shovelDark });
+    // Pivot
+    this.shovel.x = this.bodyWidth / 2 + 2;
+    this.shovel.y = -10;
+    this.shovel.pivot.set(0, -2);
 
-    // Draw torch (size/color based on torch tier)
-    const torchSize = 2 + this.equipment[EquipmentSlot.TORCH] * 0.5;
+    // === TORCH ===
+    const torchSize = 3 + this.equipment[EquipmentSlot.TORCH] * 0.5;
     const torchColor = this.getTorchColor();
-
-    this.torch.circle(0, 0, torchSize);
+    // Torch handle
+    this.torch.moveTo(0, 8);
+    this.torch.lineTo(0, -1);
+    this.torch.stroke({ width: 3, color: 0x6B4226 });
+    this.torch.moveTo(0, 8);
+    this.torch.lineTo(0, -1);
+    this.torch.stroke({ width: 1.5, color: 0x8B5A2B });
+    // Flame outer glow
+    this.torch.circle(0, -4, torchSize + 1);
+    this.torch.fill({ color: torchColor, alpha: 0.4 });
+    // Flame main
+    this.torch.circle(0, -4, torchSize);
     this.torch.fill(torchColor);
-    this.torch.x = -this.bodyWidth / 2 - 4;
-    this.torch.y = 0;
+    // Flame inner bright core
+    this.torch.circle(0, -4.5, torchSize * 0.5);
+    this.torch.fill({ color: 0xFFFFCC, alpha: 0.7 });
+    this.torch.x = -this.bodyWidth / 2 - this.armWidth;
+    this.torch.y = -12;
 
-    // Draw torch glow
-    this.torchGlow.circle(0, 0, torchSize * 2);
-    this.torchGlow.fill({ color: torchColor, alpha: 0.3 });
+    // Torch glow (larger, softer)
+    this.torchGlow.circle(0, 0, torchSize * 4);
+    this.torchGlow.fill({ color: torchColor, alpha: 0.08 });
+    this.torchGlow.circle(0, 0, torchSize * 2.5);
+    this.torchGlow.fill({ color: torchColor, alpha: 0.12 });
     this.torchGlow.x = this.torch.x;
-    this.torchGlow.y = this.torch.y;
+    this.torchGlow.y = this.torch.y - 4;
   }
 
   /**
@@ -293,24 +428,45 @@ export class PlayerRenderer {
 
       this.animationTimer += ticker.deltaMS;
 
-      const progress = Math.min(this.animationTimer / 200, 1);
-      const eased = this.easeInOutQuad(progress);
+      const progress = Math.min(this.animationTimer / 300, 1);
 
-      // Squash and stretch
-      const squash = 1 - 0.1 * Math.sin(eased * Math.PI);
-      this.body.scale.y = squash;
-      this.body.scale.x = 1 + (1 - squash) * 0.5;
+      // Pickaxe swing: wind up (0-40%), strike down (40-70%), bounce back (70-100%)
+      let swingAngle = 0;
+      if (progress < 0.4) {
+        // Wind up - raise pickaxe
+        const p = progress / 0.4;
+        swingAngle = -0.8 * p;
+      } else if (progress < 0.7) {
+        // Strike down - fast swing
+        const p = (progress - 0.4) / 0.3;
+        swingAngle = -0.8 + 1.4 * p;
+      } else {
+        // Bounce back to rest
+        const p = (progress - 0.7) / 0.3;
+        swingAngle = 0.6 * (1 - p);
+      }
 
-      // Arm swing
-      const swing = Math.sin(eased * Math.PI) * 0.3;
-      this.rightArm.rotation = swing;
-      this.shovel.rotation = swing;
+      this.rightArm.rotation = swingAngle * 0.5;
+      this.shovel.rotation = swingAngle;
+
+      // Body leans into swing
+      this.characterContainer.rotation = swingAngle * 0.05;
+
+      // Squash on impact (at progress 0.7)
+      if (progress > 0.6 && progress < 0.8) {
+        const impactP = (progress - 0.6) / 0.2;
+        this.body.scale.y = 1 - 0.08 * Math.sin(impactP * Math.PI);
+        this.body.scale.x = 1 + 0.04 * Math.sin(impactP * Math.PI);
+      } else {
+        this.body.scale.set(1, 1);
+      }
 
       if (progress >= 1) {
         // Reset
         this.body.scale.set(1, 1);
         this.rightArm.rotation = 0;
         this.shovel.rotation = 0;
+        this.characterContainer.rotation = 0;
         this.currentAnimation = null;
         if (this.digAnimationCallback) {
           ticker.remove(this.digAnimationCallback);
@@ -557,6 +713,26 @@ export class PlayerRenderer {
    */
   private easeInOutQuad(t: number): number {
     return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+  }
+
+  /**
+   * Darken a color by a percentage.
+   */
+  private darkenColor(color: number, percent: number): number {
+    const r = Math.max(0, Math.floor(((color >> 16) & 0xFF) * (1 - percent)));
+    const g = Math.max(0, Math.floor(((color >> 8) & 0xFF) * (1 - percent)));
+    const b = Math.max(0, Math.floor((color & 0xFF) * (1 - percent)));
+    return (r << 16) | (g << 8) | b;
+  }
+
+  /**
+   * Lighten a color by a percentage.
+   */
+  private lightenColor(color: number, percent: number): number {
+    const r = Math.min(255, Math.floor(((color >> 16) & 0xFF) * (1 + percent)));
+    const g = Math.min(255, Math.floor(((color >> 8) & 0xFF) * (1 + percent)));
+    const b = Math.min(255, Math.floor((color & 0xFF) * (1 + percent)));
+    return (r << 16) | (g << 8) | b;
   }
 
   /**
