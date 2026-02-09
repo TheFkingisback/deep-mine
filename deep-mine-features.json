@@ -7,7 +7,7 @@
         "P3_S02": { "name": "Game Loop", "passes": true },
         "P3_S03": { "name": "World Manager", "passes": true },
         "P3_S04": { "name": "Client Networking", "passes": true },
-        "P3_S05_S06": { "name": "Dig Validation + Loot Authority", "passes": false },
+        "P3_S05_S06": { "name": "Dig Validation + Loot Authority", "passes": true },
         "P3_S07": { "name": "TNT Fog of War", "passes": false },
         "P3_S08_S09": { "name": "Economy Authority + Client Prediction", "passes": false },
         "P3_S10": { "name": "Authentication", "passes": false },
