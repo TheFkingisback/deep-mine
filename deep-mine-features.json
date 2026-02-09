@@ -18,7 +18,7 @@
     "4": {
       "name": "Multiplayer",
       "features": {
-        "P4_S01": { "name": "Shard System", "passes": false },
+        "P4_S01": { "name": "Shard System", "passes": true },
         "P4_S02": { "name": "Other Player Rendering", "passes": false },
         "P4_S03": { "name": "Shared Block Breaking", "passes": false },
         "P4_S04": { "name": "Item Collection Conflicts", "passes": false },
