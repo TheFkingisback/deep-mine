@@ -24,7 +24,7 @@
         "P4_S04": { "name": "Item Collection Conflicts", "passes": true },
         "P4_S05": { "name": "Matchmaking", "passes": true },
         "P4_S06": { "name": "Lobby Scene", "passes": true },
-        "P4_S07": { "name": "Reconnection", "passes": false },
+        "P4_S07": { "name": "Reconnection", "passes": true },
         "P4_S08": { "name": "Chat", "passes": false }
       }
     },
