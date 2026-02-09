@@ -21,3 +21,4 @@ export * from './inventory';
 export * from './economy';
 export * from './tnt';
 export * from './events';
+export * from './messages';
