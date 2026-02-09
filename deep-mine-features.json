@@ -12,7 +12,7 @@
         "P3_S08_S09": { "name": "Economy Authority + Client Prediction", "passes": true },
         "P3_S10": { "name": "Authentication", "passes": true },
         "P3_S11": { "name": "Player Persistence", "passes": true },
-        "P3_S12": { "name": "Chunk + Redis Persistence", "passes": false }
+        "P3_S12": { "name": "Chunk + Redis Persistence", "passes": true }
       }
     },
     "4": {
