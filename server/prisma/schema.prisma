@@ -1,0 +1,53 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Player {
+  id                String   @id @default(uuid())
+  displayName       String
+  gold              BigInt   @default(0)
+  shovelTier        Int      @default(1)
+  helmetTier        Int      @default(1)
+  vestTier          Int      @default(1)
+  torchTier         Int      @default(1)
+  ropeTier          Int      @default(1)
+  inventorySlots    Int      @default(8)
+  inventoryLevel    Int      @default(0)
+  maxDepthReached   Int      @default(0)
+  totalBlocksMined  BigInt   @default(0)
+  totalGoldEarned   BigInt   @default(0)
+  totalExplosions   Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  inventory   PlayerInventory[]
+  checkpoints PlayerCheckpoint[]
+}
+
+model PlayerInventory {
+  id        String @id @default(uuid())
+  playerId  String
+  slotIndex Int
+  itemType  String
+  quantity  Int
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, slotIndex])
+}
+
+model PlayerCheckpoint {
+  id       String @id @default(uuid())
+  playerId String
+  shardId  String
+  depth    Int
+
+  player Player @relation(fields: [playerId], references: [id])
+
+  @@unique([playerId, shardId, depth])
+}
