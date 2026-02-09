@@ -4,7 +4,7 @@
       "name": "Server",
       "features": {
         "P3_S01": { "name": "Server Scaffolding", "passes": true },
-        "P3_S02": { "name": "Game Loop", "passes": false },
+        "P3_S02": { "name": "Game Loop", "passes": true },
         "P3_S03": { "name": "World Manager", "passes": false },
         "P3_S04": { "name": "Client Networking", "passes": false },
         "P3_S05_S06": { "name": "Dig Validation + Loot Authority", "passes": false },
