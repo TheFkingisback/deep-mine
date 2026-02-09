@@ -25,7 +25,7 @@
         "P4_S05": { "name": "Matchmaking", "passes": true },
         "P4_S06": { "name": "Lobby Scene", "passes": true },
         "P4_S07": { "name": "Reconnection", "passes": true },
-        "P4_S08": { "name": "Chat", "passes": false }
+        "P4_S08": { "name": "Chat", "passes": true }
       }
     },
     "5": {
