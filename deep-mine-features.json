@@ -38,7 +38,7 @@
         "P5_S05": { "name": "Monitoring", "passes": true },
         "P5_S06": { "name": "Leaderboard", "passes": true },
         "P5_S07": { "name": "Mobile Controls", "passes": true },
-        "P5_S08": { "name": "PWA Wrapper", "passes": false }
+        "P5_S08": { "name": "PWA Wrapper", "passes": true }
       }
     }
   }
