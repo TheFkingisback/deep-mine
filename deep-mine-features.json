@@ -1,0 +1,45 @@
+{
+  "phases": {
+    "3": {
+      "name": "Server",
+      "features": {
+        "P3_S01": { "name": "Server Scaffolding", "passes": true },
+        "P3_S02": { "name": "Game Loop", "passes": false },
+        "P3_S03": { "name": "World Manager", "passes": false },
+        "P3_S04": { "name": "Client Networking", "passes": false },
+        "P3_S05_S06": { "name": "Dig Validation + Loot Authority", "passes": false },
+        "P3_S07": { "name": "TNT Fog of War", "passes": false },
+        "P3_S08_S09": { "name": "Economy Authority + Client Prediction", "passes": false },
+        "P3_S10": { "name": "Authentication", "passes": false },
+        "P3_S11": { "name": "Player Persistence", "passes": false },
+        "P3_S12": { "name": "Chunk + Redis Persistence", "passes": false }
+      }
+    },
+    "4": {
+      "name": "Multiplayer",
+      "features": {
+        "P4_S01": { "name": "Shard System", "passes": false },
+        "P4_S02": { "name": "Other Player Rendering", "passes": false },
+        "P4_S03": { "name": "Shared Block Breaking", "passes": false },
+        "P4_S04": { "name": "Item Collection Conflicts", "passes": false },
+        "P4_S05": { "name": "Matchmaking", "passes": false },
+        "P4_S06": { "name": "Lobby Scene", "passes": false },
+        "P4_S07": { "name": "Reconnection", "passes": false },
+        "P4_S08": { "name": "Chat", "passes": false }
+      }
+    },
+    "5": {
+      "name": "Scale and Polish",
+      "features": {
+        "P5_S01": { "name": "Gateway/Shard Separation", "passes": false },
+        "P5_S02": { "name": "Binary Protocol", "passes": false },
+        "P5_S03": { "name": "Docker", "passes": false },
+        "P5_S04": { "name": "Load Testing", "passes": false },
+        "P5_S05": { "name": "Monitoring", "passes": false },
+        "P5_S06": { "name": "Leaderboard", "passes": false },
+        "P5_S07": { "name": "Mobile Controls", "passes": false },
+        "P5_S08": { "name": "PWA Wrapper", "passes": false }
+      }
+    }
+  }
+}
