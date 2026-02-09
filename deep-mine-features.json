@@ -32,7 +32,7 @@
       "name": "Scale and Polish",
       "features": {
         "P5_S01": { "name": "Gateway/Shard Separation", "passes": true },
-        "P5_S02": { "name": "Binary Protocol", "passes": false },
+        "P5_S02": { "name": "Binary Protocol", "passes": true },
         "P5_S03": { "name": "Docker", "passes": false },
         "P5_S04": { "name": "Load Testing", "passes": false },
         "P5_S05": { "name": "Monitoring", "passes": false },
