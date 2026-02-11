@@ -319,6 +319,14 @@ export interface PlayerInfoUpdateMessage {
   items: { itemType: string; quantity: number }[];
 }
 
+export interface AuthResultMessage {
+  type: 'auth_result';
+  success: boolean;
+  userId?: string;
+  nickname?: string;
+  error?: string;
+}
+
 export interface ErrorMessage {
   type: 'error';
   code: string;
@@ -346,4 +354,5 @@ export type ServerMessage =
   | MatchListMessage
   | MatchJoinedMessage
   | PlayerInfoUpdateMessage
+  | AuthResultMessage
   | ErrorMessage;

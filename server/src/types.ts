@@ -34,6 +34,7 @@ export type {
   InventoryFullMessage,
   MatchmakingResultMessage,
   ChatBroadcastMessage,
+  AuthResultMessage,
   ErrorMessage,
 } from '@shared/messages';
 

@@ -82,6 +82,7 @@ export class MiningScene {
   // Callbacks
   private onSurfaceCallback: (() => void) | null = null;
   private onGameOverCallback: (() => void) | null = null;
+  private onLogoutCallback: (() => void) | null = null;
 
   // Multiplayer
   private connection: Connection | null = null;
@@ -142,6 +143,7 @@ export class MiningScene {
     // Set up HUD callbacks
     this.hud.setButtonCallback('surface', () => this.handleSurfaceClick());
     this.hud.setButtonCallback('checkpoint', () => this.handleCheckpointClick());
+    this.hud.setButtonCallback('logout', () => { if (this.onLogoutCallback) this.onLogoutCallback(); });
 
     // Set up input
     this.clickHandler = this.handleClick.bind(this);
@@ -1564,6 +1566,10 @@ export class MiningScene {
 
   setGameOverCallback(callback: () => void): void {
     this.onGameOverCallback = callback;
+  }
+
+  setLogoutCallback(callback: () => void): void {
+    this.onLogoutCallback = callback;
   }
 
   /**

@@ -4,6 +4,8 @@ import { v4 as uuidv4 } from 'uuid';
 import { ClientMessage, ConnectedPlayer } from './types.js';
 import { MatchManager } from './MatchManager.js';
 import { randomBytes } from 'crypto';
+import { validateToken } from './gateway/Auth.js';
+import * as UserService from './auth/UserService.js';
 import { getShovelDamage, canBuyEquipment, getEquipmentPrice, getNextTier, getVestBonusSlots } from '@shared/equipment';
 import { rollLootDrop } from '@shared/layers';
 import { getItemValue } from '@shared/items';
@@ -86,20 +88,86 @@ const wss = new WebSocketServer({
 const players = new Map<string, ConnectedPlayer>();
 const matchManager = new MatchManager();
 
-// M1: Health/metrics HTTP endpoint
-httpServer.on('request', (req: IncomingMessage, res: ServerResponse) => {
+// ─── HTTP helpers ────────────────────────────────────────────────────
+
+function parseJsonBody(req: IncomingMessage): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', (chunk: Buffer) => { body += chunk.toString(); if (body.length > 10000) reject(new Error('Body too large')); });
+    req.on('end', () => { try { resolve(JSON.parse(body)); } catch { reject(new Error('Invalid JSON')); } });
+    req.on('error', reject);
+  });
+}
+
+function sendJson(res: ServerResponse, status: number, data: unknown): void {
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Headers': 'Content-Type' });
+  res.end(JSON.stringify(data));
+}
+
+// ─── HTTP endpoints ──────────────────────────────────────────────────
+
+httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
+  // CORS preflight
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, { 'Access-Control-Allow-Origin': '*', 'Access-Control-Allow-Methods': 'POST, GET, OPTIONS', 'Access-Control-Allow-Headers': 'Content-Type' });
+    res.end();
+    return;
+  }
+
   if (req.url === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({
+    sendJson(res, 200, {
       status: 'ok',
       uptime: Math.floor(process.uptime()),
       connections: wss.clients.size,
       matches: matchManager.getAllMatches().size,
       players: players.size,
       memoryMB: Math.round(process.memoryUsage().heapUsed / 1024 / 1024),
-    }));
+    });
     return;
   }
+
+  if (req.method === 'POST' && req.url === '/api/register') {
+    try {
+      const body = await parseJsonBody(req);
+      const result = await UserService.register({
+        email: String(body.email ?? ''),
+        password: String(body.password ?? ''),
+        firstName: String(body.firstName ?? ''),
+        lastName: String(body.lastName ?? ''),
+        nickname: String(body.nickname ?? ''),
+      });
+      sendJson(res, result.success ? 200 : 400, result);
+    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/login') {
+    try {
+      const body = await parseJsonBody(req);
+      const result = await UserService.login(String(body.email ?? ''), String(body.password ?? ''));
+      sendJson(res, result.success ? 200 : 401, result);
+    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/forgot') {
+    try {
+      const body = await parseJsonBody(req);
+      const result = await UserService.forgotPassword(String(body.email ?? ''));
+      sendJson(res, 200, result);
+    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    return;
+  }
+
+  if (req.method === 'POST' && req.url === '/api/reset') {
+    try {
+      const body = await parseJsonBody(req);
+      const result = await UserService.resetPassword(String(body.token ?? ''), String(body.password ?? ''));
+      sendJson(res, result.success ? 200 : 400, result);
+    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    return;
+  }
+
   res.writeHead(404);
   res.end();
 });
@@ -345,6 +413,19 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
         playerId: player.id, displayName: player.displayName,
         x: message.x, y: message.y, action: 'digging', equipment: mp.equipment,
       });
+      break;
+    }
+
+    case 'auth': {
+      if (typeof message.token !== 'string') break;
+      const payload = validateToken(message.token);
+      if (payload && payload.userId && !payload.isGuest) {
+        player.displayName = payload.displayName;
+        player.authenticated = true;
+        sendTo(player.ws, { type: 'auth_result', success: true, userId: payload.userId, nickname: payload.displayName });
+      } else {
+        sendTo(player.ws, { type: 'auth_result', success: false, error: 'Invalid token' });
+      }
       break;
     }
 

@@ -34,6 +34,17 @@ export class SellPanel {
 
   private coinParticles: CoinParticle[] = [];
 
+  // Scroll state
+  private itemListContainer: Container | null = null;
+  private scrollMask: Graphics | null = null;
+  private scrollY = 0;
+  private maxScrollY = 0;
+  private wheelHandler: ((e: WheelEvent) => void) | null = null;
+
+  private static readonly ITEM_LIST_TOP = 60;
+  private static readonly ITEM_ROW_HEIGHT = 50;
+  private static readonly SCROLL_SPEED = 30;
+
   constructor(app: Application, onSell: (result: any) => void) {
     this.app = app;
     this.onSellCallback = onSell;
@@ -77,6 +88,14 @@ export class SellPanel {
     this.playerState = playerState;
     this.container.visible = true;
 
+    this.wheelHandler = (e: WheelEvent) => {
+      if (!this.isOpen || !this.itemListContainer || this.maxScrollY <= 0) return;
+      e.preventDefault();
+      this.scrollY = Math.min(this.maxScrollY, Math.max(0, this.scrollY + (e.deltaY > 0 ? SellPanel.SCROLL_SPEED : -SellPanel.SCROLL_SPEED)));
+      this.itemListContainer.y = SellPanel.ITEM_LIST_TOP - this.scrollY;
+    };
+    window.addEventListener('wheel', this.wheelHandler, { passive: false });
+
     this.populatePanel();
   }
 
@@ -85,6 +104,15 @@ export class SellPanel {
    */
   close(): void {
     if (!this.isOpen) return;
+
+    if (this.wheelHandler) {
+      window.removeEventListener('wheel', this.wheelHandler);
+      this.wheelHandler = null;
+    }
+    this.scrollY = 0;
+    this.maxScrollY = 0;
+    this.itemListContainer = null;
+    this.scrollMask = null;
 
     this.isOpen = false;
     this.container.visible = false;
@@ -151,16 +179,28 @@ export class SellPanel {
       emptyText.y = panelHeight / 2;
       this.panel.addChild(emptyText);
     } else {
-      // Scrollable item list (up to 6 items visible)
+      const scrollAreaHeight = panelHeight - 100 - SellPanel.ITEM_LIST_TOP;
       const itemListContainer = new Container();
 
       items.forEach((slot, index) => {
         const itemRow = this.createItemRow(slot, panelWidth);
-        itemRow.y = index * 50;
+        itemRow.y = index * SellPanel.ITEM_ROW_HEIGHT;
         itemListContainer.addChild(itemRow);
       });
 
-      itemListContainer.y = yOffset;
+      const totalContentHeight = items.length * SellPanel.ITEM_ROW_HEIGHT;
+      this.maxScrollY = Math.max(0, totalContentHeight - scrollAreaHeight);
+      this.scrollY = 0;
+
+      // Mask to clip item list to scroll area
+      this.scrollMask = new Graphics();
+      this.scrollMask.rect(0, SellPanel.ITEM_LIST_TOP, panelWidth, scrollAreaHeight);
+      this.scrollMask.fill(0xFFFFFF);
+      this.panel.addChild(this.scrollMask);
+
+      itemListContainer.y = SellPanel.ITEM_LIST_TOP;
+      itemListContainer.mask = this.scrollMask;
+      this.itemListContainer = itemListContainer;
       this.panel.addChild(itemListContainer);
 
       // Bottom section divider
@@ -547,6 +587,11 @@ export class SellPanel {
    * Clean up the panel.
    */
   destroy(): void {
+    if (this.wheelHandler) {
+      window.removeEventListener('wheel', this.wheelHandler);
+      this.wheelHandler = null;
+    }
+
     // Clean up particles
     this.coinParticles.forEach(particle => {
       this.container.removeChild(particle.graphics);

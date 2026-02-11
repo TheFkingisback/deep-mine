@@ -32,6 +32,7 @@ export class HUD {
   // Buttons
   private surfaceButton: Container;
   private checkpointButton: Container;
+  private logoutButton: Container;
 
   // Lives display
   private livesText: Text;
@@ -47,6 +48,7 @@ export class HUD {
   // Button callbacks
   private onSurfaceClick: (() => void) | null = null;
   private onCheckpointClick: (() => void) | null = null;
+  private onLogoutClick: (() => void) | null = null;
 
   constructor(app: Application) {
     this.app = app;
@@ -79,6 +81,7 @@ export class HUD {
     // Create buttons
     this.surfaceButton = this.createSurfaceButton();
     this.checkpointButton = this.createCheckpointButton();
+    this.logoutButton = this.createLogoutButton();
 
     // Add all to container
     this.container.addChild(this.goldText);
@@ -88,6 +91,7 @@ export class HUD {
     this.container.addChild(this.itemsBarContainer);
     this.container.addChild(this.surfaceButton);
     this.container.addChild(this.checkpointButton);
+    this.container.addChild(this.logoutButton);
 
     this.app.stage.addChild(this.container);
     this.resize(this.app.screen.width, this.app.screen.height);
@@ -217,6 +221,46 @@ export class HUD {
     return button;
   }
 
+  private createLogoutButton(): Container {
+    const button = new Container();
+    button.eventMode = 'static';
+    button.cursor = 'pointer';
+
+    const bg = new Graphics();
+    bg.roundRect(0, 0, 90, 32, 8);
+    bg.fill({ color: 0x442222, alpha: 0.85 });
+    bg.roundRect(0, 0, 90, 32, 8);
+    bg.stroke({ width: 1, color: 0x664444, alpha: 0.5 });
+    button.addChild(bg);
+
+    const style = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 13, fill: '#CC8888', fontWeight: 'bold' });
+    const text = new Text({ text: 'Logout', style });
+    text.anchor.set(0.5);
+    text.x = 45; text.y = 16;
+    button.addChild(text);
+
+    button.on('pointerover', () => {
+      bg.clear();
+      bg.roundRect(0, 0, 90, 32, 8);
+      bg.fill({ color: 0x553333, alpha: 0.95 });
+      bg.roundRect(0, 0, 90, 32, 8);
+      bg.stroke({ width: 1, color: 0x886666, alpha: 0.6 });
+      text.style.fill = '#FFAAAA';
+    });
+    button.on('pointerout', () => {
+      bg.clear();
+      bg.roundRect(0, 0, 90, 32, 8);
+      bg.fill({ color: 0x442222, alpha: 0.85 });
+      bg.roundRect(0, 0, 90, 32, 8);
+      bg.stroke({ width: 1, color: 0x664444, alpha: 0.5 });
+      text.style.fill = '#CC8888';
+    });
+    button.on('pointerdown', () => { button.scale.set(0.95); });
+    button.on('pointerup', () => { button.scale.set(1.0); if (this.onLogoutClick) this.onLogoutClick(); });
+
+    return button;
+  }
+
   updateItems(inventory: (InventorySlot | null)[]): void {
     this.itemTexts.forEach(t => {
       this.itemsBarContainer.removeChild(t);
@@ -341,17 +385,19 @@ export class HUD {
     this.floatingTexts.push({ text: floatingText, vy: -1.5, lifetime: 800, elapsed: 0, startAlpha: 1.0 });
   }
 
-  setButtonVisibility(button: 'surface' | 'checkpoint' | 'inventory', visible: boolean): void {
+  setButtonVisibility(button: 'surface' | 'checkpoint' | 'inventory' | 'logout', visible: boolean): void {
     switch (button) {
       case 'surface': this.surfaceButton.visible = visible; break;
       case 'checkpoint': this.checkpointButton.visible = visible; break;
+      case 'logout': this.logoutButton.visible = visible; break;
     }
   }
 
-  setButtonCallback(button: 'surface' | 'checkpoint' | 'inventory', callback: () => void): void {
+  setButtonCallback(button: 'surface' | 'checkpoint' | 'inventory' | 'logout', callback: () => void): void {
     switch (button) {
       case 'surface': this.onSurfaceClick = callback; break;
       case 'checkpoint': this.onCheckpointClick = callback; break;
+      case 'logout': this.onLogoutClick = callback; break;
     }
   }
 
@@ -412,6 +458,10 @@ export class HUD {
     // Bottom-center: Checkpoint button
     this.checkpointButton.x = width / 2 - 60;
     this.checkpointButton.y = height - 50;
+
+    // Bottom-right: Logout button
+    this.logoutButton.x = width - 100;
+    this.logoutButton.y = height - 46;
   }
 
   destroy(): void {

@@ -25,6 +25,7 @@ const NOUNS = [
 
 export interface JwtPayload {
   playerId: string;
+  userId?: string;
   displayName: string;
   isGuest: boolean;
   iat?: number;
@@ -60,6 +61,19 @@ export function createGuestAuth(): GuestAuthResult {
   const token = jwt.sign(payload, JWT_SECRET, { expiresIn: JWT_EXPIRY });
 
   return { token, playerId, displayName };
+}
+
+/**
+ * Create an authenticated user token (7-day expiry).
+ */
+export function createUserAuth(userId: string, nickname: string): { token: string } {
+  const payload: JwtPayload = {
+    playerId: uuidv4(),
+    userId,
+    displayName: nickname,
+    isGuest: false,
+  };
+  return { token: jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' }) };
 }
 
 /**

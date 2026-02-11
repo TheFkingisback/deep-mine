@@ -7,10 +7,23 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  firstName     String
+  lastName      String
+  nickname      String    @unique
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  resetToken    String?
+  resetExpiry   DateTime?
+}
+
 model Player {
   id                String   @id @default(uuid())
   displayName       String
-  gold              BigInt   @default(0)
+  gold              Int   @default(0)
   shovelTier        Int      @default(1)
   helmetTier        Int      @default(1)
   vestTier          Int      @default(1)
@@ -19,8 +32,8 @@ model Player {
   inventorySlots    Int      @default(8)
   inventoryLevel    Int      @default(0)
   maxDepthReached   Int      @default(0)
-  totalBlocksMined  BigInt   @default(0)
-  totalGoldEarned   BigInt   @default(0)
+  totalBlocksMined  Int   @default(0)
+  totalGoldEarned   Int   @default(0)
   totalExplosions   Int      @default(0)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

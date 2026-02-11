@@ -50,6 +50,7 @@ export class SurfaceScene {
   private onDescendToDepth: ((depth: number) => void) | null = null;
   private onSellClick: (() => void) | null = null;
   private onShopClick: (() => void) | null = null;
+  private onLogoutCallback: (() => void) | null = null;
 
   // Multiplayer
   private connection: Connection | null = null;
@@ -108,6 +109,8 @@ export class SurfaceScene {
 
     // HUD
     this.hud = new HUD(this.app);
+    this.hud.setButtonCallback('logout', () => { if (this.onLogoutCallback) this.onLogoutCallback(); });
+    this.hud.setButtonVisibility('surface', false);
 
     // Panels
     this.sellPanel = new SellPanel(this.app, (result) => {
@@ -877,6 +880,7 @@ export class SurfaceScene {
   setDescendToDepthCallback(callback: (depth: number) => void): void { this.onDescendToDepth = callback; }
   setSellCallback(callback: () => void): void { this.onSellClick = callback; }
   setShopCallback(callback: () => void): void { this.onShopClick = callback; }
+  setLogoutCallback(callback: () => void): void { this.onLogoutCallback = callback; }
 
   // ─── UPDATE ──────────────────────────────────────────────────────
 

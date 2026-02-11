@@ -6,8 +6,10 @@ import { PlayerState, EquipmentSlot } from '@shared/types';
 import { createInventory } from '@shared/inventory';
 import { Connection } from '../networking/Connection';
 import { MessageHandler } from '../networking/MessageHandler';
+import { SessionManager } from '../networking/SessionManager';
 import type { MatchJoinedMessage } from '@shared/messages';
 import { audioManager } from '../audio/AudioManager';
+import { GameSaveManager } from './GameSaveManager';
 
 export class Game {
   private app: Application;
@@ -23,6 +25,16 @@ export class Game {
   private matchSeed = 0;
   private matchId = '';
 
+  // Navigation prevention
+  private reloadBlockerHandler: ((e: KeyboardEvent) => void) | null = null;
+  private beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
+
+  // Auth
+  private sessionManager = new SessionManager();
+
+  // Auto-save
+  private saveManager = new GameSaveManager();
+
   constructor(app: Application) {
     this.app = app;
     this.currentScene = 'lobby';
@@ -34,19 +46,18 @@ export class Game {
     // Initialize audio system
     await audioManager.loadAll();
 
-    // Connect to server (required for lobby)
-    try {
-      const wsHost = window.location.hostname || 'localhost';
-      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      this.connection = new Connection(`${wsProtocol}://${wsHost}:9001`);
-      await this.connection.connect();
-      this.messageHandler = new MessageHandler(this.connection);
-      console.log('🌐 Connected to server');
-    } catch {
-      console.warn('⚠️ Could not connect to server — playing offline');
-      this.connection = null;
-      this.messageHandler = null;
+    // Check for saved game
+    const savedGame = this.saveManager.load();
+    if (savedGame) {
+      console.log('💾 Restoring saved game...');
+      await this.restoreFromSave(savedGame);
+      this.setupNavigationPrevention();
+      console.log('✅ Game restored from save');
+      return;
     }
+
+    // Connect to server (required for lobby)
+    await this.connectToServer();
 
     if (this.connection && this.messageHandler) {
       // Start in lobby
@@ -58,7 +69,105 @@ export class Game {
       this.startOfflineMining();
     }
 
+    this.setupNavigationPrevention();
     console.log('✅ Deep Mine initialized');
+  }
+
+  private async connectToServer(): Promise<void> {
+    try {
+      const wsHost = window.location.hostname || 'localhost';
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      this.connection = new Connection(`${wsProtocol}://${wsHost}:9001`);
+      await this.connection.connect();
+      this.messageHandler = new MessageHandler(this.connection);
+      console.log('🌐 Connected to server');
+
+      // Send auth token if logged in
+      const token = this.sessionManager.getToken();
+      if (token) {
+        this.connection.send({ type: 'auth', token });
+        console.log('🔑 Sent auth token to server');
+      }
+    } catch {
+      console.warn('⚠️ Could not connect to server — playing offline');
+      this.connection = null;
+      this.messageHandler = null;
+    }
+  }
+
+  private collectSaveData() {
+    return {
+      playerState: structuredClone(this.playerState),
+      matchSeed: this.matchSeed,
+      matchId: this.matchId,
+      currentScene: this.currentScene as 'mining' | 'surface',
+      isOffline: this.connection === null,
+    };
+  }
+
+  private async restoreFromSave(saved: import('./GameSaveManager').GameSaveData): Promise<void> {
+    this.playerState = saved.playerState;
+    this.matchSeed = saved.matchSeed;
+    this.matchId = saved.matchId;
+
+    if (!saved.isOffline) {
+      await this.connectToServer();
+    }
+
+    if (saved.currentScene === 'mining') {
+      this.currentScene = 'mining';
+      this.miningScene = new MiningScene(
+        this.app, this.playerState,
+        this.connection ?? undefined, this.messageHandler ?? undefined,
+        this.matchSeed, this.matchId,
+      );
+      await this.miningScene.init();
+      this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
+      this.miningScene.setGameOverCallback(() => this.handleGameOver());
+      this.miningScene.setLogoutCallback(() => this.handleLogout());
+    } else if (saved.currentScene === 'surface') {
+      this.currentScene = 'surface';
+      this.surfaceScene = new SurfaceScene(
+        this.app, this.playerState,
+        this.connection ?? undefined, this.messageHandler ?? undefined,
+      );
+      await this.surfaceScene.init();
+      this.surfaceScene.setDescendToDepthCallback((depth) => {
+        this.playerState.position.y = depth;
+        this.switchScene('mining');
+      });
+      this.surfaceScene.setLogoutCallback(() => this.handleLogout());
+    }
+
+    this.saveManager.startAutoSave(() => this.collectSaveData());
+  }
+
+  private isInActiveGame(): boolean {
+    return this.currentScene === 'mining' || this.currentScene === 'surface';
+  }
+
+  private handleLogout(): void {
+    this.saveManager.stopAutoSave();
+    this.saveManager.clear();
+    this.sessionManager.clearAuth();
+    this.switchScene('lobby');
+  }
+
+  private setupNavigationPrevention(): void {
+    this.reloadBlockerHandler = (e: KeyboardEvent) => {
+      if (!this.isInActiveGame()) return;
+      if (e.key === 'F5') { e.preventDefault(); return; }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'r') { e.preventDefault(); return; }
+    };
+    window.addEventListener('keydown', this.reloadBlockerHandler);
+
+    this.beforeUnloadHandler = (e: BeforeUnloadEvent) => {
+      if (!this.isInActiveGame()) return;
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+    window.addEventListener('beforeunload', this.beforeUnloadHandler);
   }
 
   private async onMatchFound(data: MatchJoinedMessage): Promise<void> {
@@ -103,6 +212,8 @@ export class Game {
     await this.miningScene.init();
     this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
     this.miningScene.setGameOverCallback(() => this.handleGameOver());
+    this.miningScene.setLogoutCallback(() => this.handleLogout());
+    this.saveManager.startAutoSave(() => this.collectSaveData());
   }
 
   private async startOfflineMining(): Promise<void> {
@@ -134,10 +245,23 @@ export class Game {
     await this.miningScene.init();
     this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
     this.miningScene.setGameOverCallback(() => this.handleGameOver());
+    this.miningScene.setLogoutCallback(() => this.handleLogout());
+    this.saveManager.startAutoSave(() => this.collectSaveData());
   }
 
   async switchScene(scene: 'mining' | 'surface' | 'lobby'): Promise<void> {
     console.log(`🎬 Switching to scene: ${scene}`);
+
+    // Auto-save before transition
+    if (this.isInActiveGame()) {
+      this.saveManager.save(this.collectSaveData());
+    }
+
+    // Clear save when returning to lobby
+    if (scene === 'lobby') {
+      this.saveManager.stopAutoSave();
+      this.saveManager.clear();
+    }
 
     // Destroy current scene
     if (this.currentScene === 'mining' && this.miningScene) {
@@ -159,6 +283,7 @@ export class Game {
       await this.miningScene.init();
       this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
       this.miningScene.setGameOverCallback(() => this.handleGameOver());
+      this.miningScene.setLogoutCallback(() => this.handleLogout());
     } else if (scene === 'surface') {
       this.surfaceScene = new SurfaceScene(this.app, this.playerState, this.connection ?? undefined, this.messageHandler ?? undefined);
       await this.surfaceScene.init();
@@ -166,6 +291,7 @@ export class Game {
         this.playerState.position.y = depth;
         this.switchScene('mining');
       });
+      this.surfaceScene.setLogoutCallback(() => this.handleLogout());
     } else if (scene === 'lobby') {
       if (this.connection && this.messageHandler) {
         this.lobbyScene = new LobbyScene(this.app, this.connection, this.messageHandler);
@@ -193,6 +319,8 @@ export class Game {
 
   private handleGameOver(): void {
     console.log('GAME OVER');
+    this.saveManager.stopAutoSave();
+    this.saveManager.clear();
 
     // Show game over overlay
     const overlay = new Container();

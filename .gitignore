@@ -30,5 +30,15 @@ npm-debug.log*
 # Keep test files
 !test-*.js
 
+# Keep build scripts
+!server/scripts/*.js
+!packages/shared/scripts/*.js
+
+# Windows artifacts
+nul
+
+# Database files
+*.db
+
 # Claude
 .claude/
