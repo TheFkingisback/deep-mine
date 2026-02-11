@@ -80,6 +80,25 @@ export interface AuthMessage {
   token: string;
 }
 
+export interface CreateMatchMessage {
+  type: 'create_match';
+  matchName: string;
+}
+
+export interface JoinMatchMessage {
+  type: 'join_match';
+  matchId: string;
+}
+
+export interface ListMatchesMessage {
+  type: 'list_matches';
+}
+
+export interface SetNameMessage {
+  type: 'set_name';
+  name: string;
+}
+
 export type ClientMessage =
   | DigMessage
   | MoveMessage
@@ -95,7 +114,11 @@ export type ClientMessage =
   | JoinPartyMessage
   | PlaySoloMessage
   | ClientChatMessage
-  | AuthMessage;
+  | AuthMessage
+  | CreateMatchMessage
+  | JoinMatchMessage
+  | ListMatchesMessage
+  | SetNameMessage;
 
 // ─── Server → Client Messages ───────────────────────────────────────
 
@@ -257,6 +280,45 @@ export interface ChatBroadcastMessage {
   timestamp: number;
 }
 
+export interface MatchListMessage {
+  type: 'match_list';
+  matches: {
+    matchId: string;
+    matchName: string;
+    playerCount: number;
+    maxPlayers: number;
+  }[];
+}
+
+export interface MatchJoinedMessage {
+  type: 'match_joined';
+  matchId: string;
+  matchName: string;
+  seed: number;
+  playerId: string;
+  displayName: string;
+  spawnX: number;
+  spawnY: number;
+  players: {
+    playerId: string;
+    displayName: string;
+    x: number;
+    y: number;
+    gold: number;
+    items: { itemType: string; quantity: number }[];
+  }[];
+}
+
+export interface PlayerInfoUpdateMessage {
+  type: 'player_info_update';
+  playerId: string;
+  displayName: string;
+  x: number;
+  y: number;
+  gold: number;
+  items: { itemType: string; quantity: number }[];
+}
+
 export interface ErrorMessage {
   type: 'error';
   code: string;
@@ -281,4 +343,7 @@ export type ServerMessage =
   | InventoryFullMessage
   | MatchmakingResultMessage
   | ChatBroadcastMessage
+  | MatchListMessage
+  | MatchJoinedMessage
+  | PlayerInfoUpdateMessage
   | ErrorMessage;

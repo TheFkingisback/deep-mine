@@ -142,14 +142,16 @@ export interface PlayerState {
   inventoryUpgradeLevel: number;
   /** Deepest Y coordinate ever reached */
   maxDepthReached: number;
-  /** List of checkpoint positions player can teleport to */
-  checkpoints: Position[];
+  /** List of checkpoint depths (Y coordinate) player can teleport to */
+  checkpoints: number[];
   /** Whether player is currently stunned (from TNT) */
   isStunned: boolean;
   /** Timestamp when stun effect ends (null if not stunned) */
   stunEndTime: number | null;
   /** Whether player is currently at surface level */
   isOnSurface: boolean;
+  /** Remaining lives (0 = game over) */
+  lives: number;
 }
 
 /**

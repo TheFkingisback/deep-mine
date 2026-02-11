@@ -15,7 +15,7 @@ export class InventoryPanel {
 
   private isOpen = false;
   private slideProgress = 0; // 0=closed, 1=open
-  private slideDirection: 1 | -1 = 1;
+  private slideDirection: 1 | -1 | 0 = 1;
   private readonly slideSpeed = 1 / 300; // 300ms animation
 
   // Tooltip
@@ -254,7 +254,7 @@ export class InventoryPanel {
    * Show tooltip for an item.
    */
   private showTooltip(itemType: string, x: number, y: number): void {
-    const itemDef = ITEMS[itemType];
+    const itemDef = ITEMS[itemType as keyof typeof ITEMS];
 
     // Build tooltip text
     const lines = [

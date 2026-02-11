@@ -1,36 +1,34 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { Connection } from '../../networking/Connection';
-import type { MatchmakingResultMessage } from '@shared/messages';
+import { MessageHandler } from '../../networking/MessageHandler';
+import type { MatchJoinedMessage, MatchListMessage } from '@shared/messages';
 
-type LobbyMode = 'menu' | 'joining' | 'waiting_room';
+type LobbyMode = 'name_input' | 'menu' | 'joining' | 'match_list';
 
 export class LobbyScene {
   private app: Application;
   private container: Container;
   private connection: Connection;
+  private messageHandler: MessageHandler;
 
-  private mode: LobbyMode = 'menu';
-  private roomCode: string | null = null;
+  private mode: LobbyMode = 'name_input';
   private roomCodeInput = '';
+  private nameInput = '';
 
-  // UI elements
   private background!: Graphics;
   private titleText!: Text;
   private statusText!: Text;
-  private roomCodeText: Text | null = null;
   private buttons: Container[] = [];
   private inputDisplay: Text | null = null;
   private inputContainer: Container | null = null;
 
-  // Callbacks
-  private onMatchFound: ((shardId: string, roomCode?: string) => void) | null = null;
-
-  // Keyboard handler reference
+  private onMatchFound: ((data: MatchJoinedMessage) => void) | null = null;
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
 
-  constructor(app: Application, connection: Connection) {
+  constructor(app: Application, connection: Connection, messageHandler: MessageHandler) {
     this.app = app;
     this.connection = connection;
+    this.messageHandler = messageHandler;
     this.container = new Container();
     this.app.stage.addChild(this.container);
   }
@@ -39,17 +37,19 @@ export class LobbyScene {
     this.drawBackground();
     this.drawTitle();
     this.drawStatusText();
-    this.drawMenuButtons();
+    this.showNameInput();
 
-    // Listen for matchmaking results
-    this.connection.onMessage = (msg) => {
-      if (msg.type === 'matchmaking_result') {
-        this.handleMatchmakingResult(msg as MatchmakingResultMessage);
-      }
-    };
+    this.messageHandler.on('match_joined', (msg) => {
+      this.setStatus('Match found!', '#88FF88');
+      if (this.onMatchFound) this.onMatchFound(msg);
+    });
+
+    this.messageHandler.on('match_list', (msg) => {
+      this.showMatchList(msg);
+    });
   }
 
-  setMatchFoundCallback(cb: (shardId: string, roomCode?: string) => void): void {
+  setMatchFoundCallback(cb: (data: MatchJoinedMessage) => void): void {
     this.onMatchFound = cb;
   }
 
@@ -57,26 +57,18 @@ export class LobbyScene {
     this.background = new Graphics();
     const w = this.app.screen.width;
     const h = this.app.screen.height;
-
-    // Dark gradient background
     this.background.rect(0, 0, w, h);
     this.background.fill({ color: 0x1a1a2e });
-
-    // Decorative mine-themed border
     this.background.rect(0, 0, w, 4);
     this.background.fill({ color: 0xf0a500 });
     this.background.rect(0, h - 4, w, 4);
     this.background.fill({ color: 0xf0a500 });
-
     this.container.addChild(this.background);
   }
 
   private drawTitle(): void {
     const style = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 48,
-      fontWeight: 'bold',
-      fill: '#F0A500',
+      fontFamily: 'Arial, sans-serif', fontSize: 48, fontWeight: 'bold', fill: '#F0A500',
       dropShadow: { color: '#000000', blur: 4, angle: Math.PI / 4, distance: 3 },
     });
     this.titleText = new Text({ text: 'DEEP MINE', style });
@@ -85,12 +77,7 @@ export class LobbyScene {
     this.titleText.y = 40;
     this.container.addChild(this.titleText);
 
-    // Subtitle
-    const subStyle = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 18,
-      fill: '#AAAACC',
-    });
+    const subStyle = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 18, fill: '#AAAACC' });
     const subtitle = new Text({ text: 'Cooperative Mining Adventure', style: subStyle });
     subtitle.anchor.set(0.5, 0);
     subtitle.x = this.app.screen.width / 2;
@@ -99,11 +86,7 @@ export class LobbyScene {
   }
 
   private drawStatusText(): void {
-    const style = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 16,
-      fill: '#88FF88',
-    });
+    const style = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 16, fill: '#88FF88' });
     this.statusText = new Text({ text: '', style });
     this.statusText.anchor.set(0.5, 0);
     this.statusText.x = this.app.screen.width / 2;
@@ -111,40 +94,106 @@ export class LobbyScene {
     this.container.addChild(this.statusText);
   }
 
+  // ─── Name Input Screen ───────────────────────────────────────────
+
+  private showNameInput(): void {
+    this.clearButtons();
+    this.removeKeyHandler();
+    this.nameInput = '';
+    this.mode = 'name_input';
+    const cx = this.app.screen.width / 2;
+    const y = 180;
+
+    const instrContainer = new Container();
+    const instr = new Text({ text: 'Choose your name:', style: new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 20, fill: '#CCCCEE' }) });
+    instr.anchor.set(0.5, 0.5);
+    instrContainer.addChild(instr);
+    instrContainer.x = cx; instrContainer.y = y;
+    this.container.addChild(instrContainer);
+    this.buttons.push(instrContainer);
+
+    this.inputContainer = new Container();
+    this.inputContainer.x = cx; this.inputContainer.y = y + 55;
+    const inputBg = new Graphics();
+    inputBg.roundRect(-140, -22, 280, 44, 6);
+    inputBg.fill({ color: 0x222244 });
+    inputBg.roundRect(-140, -22, 280, 44, 6);
+    inputBg.stroke({ color: 0xf0a500, width: 2 });
+    this.inputContainer.addChild(inputBg);
+
+    this.inputDisplay = new Text({ text: '________________', style: new TextStyle({ fontFamily: 'monospace', fontSize: 22, fontWeight: 'bold', fill: '#F0A500', letterSpacing: 4 }) });
+    this.inputDisplay.anchor.set(0.5, 0.5);
+    this.inputContainer.addChild(this.inputDisplay);
+    this.container.addChild(this.inputContainer);
+    this.buttons.push(this.inputContainer);
+
+    this.createButton('Confirm', cx, y + 130, 200, 50, 0x2d6a4f, () => {
+      this.confirmName();
+    });
+
+    this.keyHandler = (e: KeyboardEvent) => {
+      if (this.mode !== 'name_input') return;
+      if (e.key === 'Backspace') {
+        this.nameInput = this.nameInput.slice(0, -1);
+      } else if (e.key === 'Enter') {
+        this.confirmName();
+        return;
+      } else if (/^[A-Za-z0-9_\- ]$/.test(e.key) && this.nameInput.length < 16) {
+        this.nameInput += e.key;
+      }
+      if (this.inputDisplay) {
+        this.inputDisplay.text = this.nameInput || '________________';
+      }
+    };
+    window.addEventListener('keydown', this.keyHandler);
+  }
+
+  private confirmName(): void {
+    const name = this.nameInput.trim();
+    if (name.length === 0) {
+      this.setStatus('Please enter a name!', '#FF6666');
+      return;
+    }
+    this.connection.send({ type: 'set_name', name });
+    this.removeKeyHandler();
+    this.setStatus('');
+    this.drawMenuButtons();
+  }
+
+  // ─── Menu ────────────────────────────────────────────────────────
+
   private drawMenuButtons(): void {
     this.clearButtons();
+    this.mode = 'menu';
     const cx = this.app.screen.width / 2;
     const startY = 180;
     const gap = 70;
 
     this.createButton('Quick Play', cx, startY, 260, 50, 0x2d6a4f, () => {
-      this.onQuickPlay();
+      this.setStatus('Finding a game...', '#FFFF88');
+      this.connection.send({ type: 'join_quick_play' });
     });
-    this.createButton('Create Party', cx, startY + gap, 260, 50, 0x1d3557, () => {
-      this.onCreateParty();
+    this.createButton('Create Match', cx, startY + gap, 260, 50, 0x1d3557, () => {
+      this.setStatus('Creating match...', '#FFFF88');
+      this.connection.send({ type: 'create_match', matchName: `Match_${Date.now().toString(36).slice(-4).toUpperCase()}` });
     });
-    this.createButton('Join Party', cx, startY + gap * 2, 260, 50, 0x6d3a7d, () => {
+    this.createButton('Browse Matches', cx, startY + gap * 2, 260, 50, 0x6d3a7d, () => {
+      this.setStatus('Loading...', '#FFFF88');
+      this.connection.send({ type: 'list_matches' });
+    });
+    this.createButton('Join by Code', cx, startY + gap * 3, 260, 50, 0x5c4033, () => {
       this.showJoinInput();
     });
-    this.createButton('Play Solo', cx, startY + gap * 3, 260, 50, 0x5c4033, () => {
-      this.onPlaySolo();
+    this.createButton('Play Solo', cx, startY + gap * 4, 260, 50, 0x444444, () => {
+      this.setStatus('Starting solo...', '#FFFF88');
+      this.connection.send({ type: 'play_solo' });
     });
   }
 
-  private createButton(
-    label: string,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
-    color: number,
-    onClick: () => void
-  ): void {
+  private createButton(label: string, x: number, y: number, w: number, h: number, color: number, onClick: () => void): void {
     const btn = new Container();
-    btn.x = x;
-    btn.y = y;
-    btn.eventMode = 'static';
-    btn.cursor = 'pointer';
+    btn.x = x; btn.y = y;
+    btn.eventMode = 'static'; btn.cursor = 'pointer';
 
     const bg = new Graphics();
     bg.roundRect(-w / 2, -h / 2, w, h, 8);
@@ -153,12 +202,7 @@ export class LobbyScene {
     bg.stroke({ color: 0xffffff, width: 1, alpha: 0.3 });
     btn.addChild(bg);
 
-    const style = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 20,
-      fontWeight: 'bold',
-      fill: '#FFFFFF',
-    });
+    const style = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 20, fontWeight: 'bold', fill: '#FFFFFF' });
     const text = new Text({ text: label, style });
     text.anchor.set(0.5, 0.5);
     btn.addChild(text);
@@ -179,34 +223,26 @@ export class LobbyScene {
     this.buttons = [];
   }
 
+  // ─── Join by Code ────────────────────────────────────────────────
+
   private showJoinInput(): void {
     this.clearButtons();
+    this.removeKeyHandler();
     this.roomCodeInput = '';
     this.mode = 'joining';
-
     const cx = this.app.screen.width / 2;
     const y = 220;
 
-    // Instruction
-    const instrStyle = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 18,
-      fill: '#CCCCEE',
-    });
     const instrContainer = new Container();
-    const instr = new Text({ text: 'Enter Room Code:', style: instrStyle });
+    const instr = new Text({ text: 'Enter Match Code:', style: new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 18, fill: '#CCCCEE' }) });
     instr.anchor.set(0.5, 0.5);
     instrContainer.addChild(instr);
-    instrContainer.x = cx;
-    instrContainer.y = y;
+    instrContainer.x = cx; instrContainer.y = y;
     this.container.addChild(instrContainer);
     this.buttons.push(instrContainer);
 
-    // Input display box
     this.inputContainer = new Container();
-    this.inputContainer.x = cx;
-    this.inputContainer.y = y + 50;
-
+    this.inputContainer.x = cx; this.inputContainer.y = y + 50;
     const inputBg = new Graphics();
     inputBg.roundRect(-120, -20, 240, 40, 4);
     inputBg.fill({ color: 0x222244 });
@@ -214,101 +250,75 @@ export class LobbyScene {
     inputBg.stroke({ color: 0xf0a500, width: 2 });
     this.inputContainer.addChild(inputBg);
 
-    const inputStyle = new TextStyle({
-      fontFamily: 'monospace',
-      fontSize: 24,
-      fontWeight: 'bold',
-      fill: '#F0A500',
-      letterSpacing: 8,
-    });
-    this.inputDisplay = new Text({ text: '______', style: inputStyle });
+    this.inputDisplay = new Text({ text: '________', style: new TextStyle({ fontFamily: 'monospace', fontSize: 24, fontWeight: 'bold', fill: '#F0A500', letterSpacing: 8 }) });
     this.inputDisplay.anchor.set(0.5, 0.5);
     this.inputContainer.addChild(this.inputDisplay);
-
     this.container.addChild(this.inputContainer);
     this.buttons.push(this.inputContainer);
 
-    // Join button
     this.createButton('Join', cx, y + 120, 160, 44, 0x6d3a7d, () => {
       if (this.roomCodeInput.length >= 4) {
-        this.onJoinParty(this.roomCodeInput);
+        this.setStatus(`Joining ${this.roomCodeInput}...`, '#FFFF88');
+        this.connection.send({ type: 'join_match', matchId: this.roomCodeInput });
       }
     });
-
-    // Back button
     this.createButton('Back', cx, y + 180, 160, 44, 0x555555, () => {
       this.removeKeyHandler();
-      this.mode = 'menu';
       this.drawMenuButtons();
+      this.setStatus('');
     });
 
-    // Keyboard listener for code input
     this.keyHandler = (e: KeyboardEvent) => {
       if (this.mode !== 'joining') return;
-      if (e.key === 'Backspace') {
-        this.roomCodeInput = this.roomCodeInput.slice(0, -1);
-      } else if (e.key === 'Enter' && this.roomCodeInput.length >= 4) {
-        this.onJoinParty(this.roomCodeInput);
+      if (e.key === 'Backspace') this.roomCodeInput = this.roomCodeInput.slice(0, -1);
+      else if (e.key === 'Enter' && this.roomCodeInput.length >= 4) {
+        this.setStatus(`Joining ${this.roomCodeInput}...`, '#FFFF88');
+        this.connection.send({ type: 'join_match', matchId: this.roomCodeInput });
         return;
-      } else if (/^[A-Za-z0-9]$/.test(e.key) && this.roomCodeInput.length < 6) {
+      } else if (/^[A-Za-z0-9]$/.test(e.key) && this.roomCodeInput.length < 8) {
         this.roomCodeInput += e.key.toUpperCase();
       }
-      this.updateInputDisplay();
+      if (this.inputDisplay) this.inputDisplay.text = this.roomCodeInput.padEnd(8, '_');
     };
     window.addEventListener('keydown', this.keyHandler);
   }
 
-  private updateInputDisplay(): void {
-    if (!this.inputDisplay) return;
-    const padded = this.roomCodeInput.padEnd(6, '_');
-    this.inputDisplay.text = padded;
-  }
-
   private removeKeyHandler(): void {
-    if (this.keyHandler) {
-      window.removeEventListener('keydown', this.keyHandler);
-      this.keyHandler = null;
-    }
+    if (this.keyHandler) { window.removeEventListener('keydown', this.keyHandler); this.keyHandler = null; }
   }
 
-  private showWaitingRoom(roomCode: string): void {
+  // ─── Match List ──────────────────────────────────────────────────
+
+  private showMatchList(msg: MatchListMessage): void {
     this.clearButtons();
     this.removeKeyHandler();
-    this.mode = 'waiting_room';
-    this.roomCode = roomCode;
-
+    this.mode = 'match_list';
+    this.setStatus('');
     const cx = this.app.screen.width / 2;
+    let y = 180;
 
-    // Room code display
-    const codeStyle = new TextStyle({
-      fontFamily: 'monospace',
-      fontSize: 36,
-      fontWeight: 'bold',
-      fill: '#F0A500',
-      letterSpacing: 10,
+    if (msg.matches.length === 0) {
+      const c = new Container();
+      const t = new Text({ text: 'No matches available. Create one!', style: new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 18, fill: '#AAAAAA' }) });
+      t.anchor.set(0.5, 0.5);
+      c.addChild(t); c.x = cx; c.y = y;
+      this.container.addChild(c);
+      this.buttons.push(c);
+      y += 60;
+    } else {
+      for (const m of msg.matches.slice(0, 5)) {
+        this.createButton(`${m.matchName} (${m.playerCount}/${m.maxPlayers})`, cx, y, 320, 44, 0x2d6a4f, () => {
+          this.setStatus(`Joining ${m.matchName}...`, '#FFFF88');
+          this.connection.send({ type: 'join_match', matchId: m.matchId });
+        });
+        y += 55;
+      }
+    }
+
+    this.createButton('Back', cx, y + 20, 160, 44, 0x555555, () => {
+      this.drawMenuButtons();
+      this.setStatus('');
     });
-    this.roomCodeText = new Text({ text: roomCode, style: codeStyle });
-    this.roomCodeText.anchor.set(0.5, 0.5);
-    this.roomCodeText.x = cx;
-    this.roomCodeText.y = 220;
-
-    const labelStyle = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 16,
-      fill: '#AAAACC',
-    });
-    const labelContainer = new Container();
-    const label = new Text({ text: 'Share this code with friends:', style: labelStyle });
-    label.anchor.set(0.5, 0.5);
-    labelContainer.addChild(label);
-    labelContainer.x = cx;
-    labelContainer.y = 185;
-
-    this.container.addChild(labelContainer);
-    this.container.addChild(this.roomCodeText);
-    this.buttons.push(labelContainer);
-
-    this.statusText.text = 'Waiting for players...';
   }
 
   private setStatus(text: string, color = '#88FF88'): void {
@@ -316,63 +326,11 @@ export class LobbyScene {
     this.statusText.style.fill = color;
   }
 
-  // --- Matchmaking actions ---
-
-  private onQuickPlay(): void {
-    this.setStatus('Finding a game...', '#FFFF88');
-    this.connection.send({ type: 'join_quick_play' });
-  }
-
-  private onCreateParty(): void {
-    this.setStatus('Creating party...', '#FFFF88');
-    this.connection.send({ type: 'create_party' });
-  }
-
-  private onJoinParty(code: string): void {
-    this.removeKeyHandler();
-    this.setStatus(`Joining room ${code}...`, '#FFFF88');
-    this.connection.send({ type: 'join_party', roomCode: code });
-  }
-
-  private onPlaySolo(): void {
-    this.setStatus('Starting solo session...', '#FFFF88');
-    this.connection.send({ type: 'play_solo' });
-  }
-
-  private handleMatchmakingResult(msg: MatchmakingResultMessage): void {
-    if (msg.success && msg.shardId) {
-      this.setStatus('Match found!', '#88FF88');
-      if (this.onMatchFound) {
-        this.onMatchFound(msg.shardId, msg.roomCode);
-      }
-    } else {
-      this.setStatus(msg.error ?? 'Matchmaking failed', '#FF8888');
-      // Return to menu after a delay
-      setTimeout(() => {
-        this.mode = 'menu';
-        this.drawMenuButtons();
-        this.setStatus('');
-      }, 2000);
-    }
-
-    // If we got a room code back (from create party), show waiting room
-    if (msg.success && msg.roomCode && !this.onMatchFound) {
-      this.showWaitingRoom(msg.roomCode);
-    }
-  }
-
-  update(_delta: number): void {
-    // Animate title glow or similar effects could go here
-  }
+  update(_delta: number): void {}
 
   destroy(): void {
     this.removeKeyHandler();
     this.clearButtons();
-    if (this.roomCodeText) {
-      this.container.removeChild(this.roomCodeText);
-      this.roomCodeText.destroy();
-      this.roomCodeText = null;
-    }
     this.app.stage.removeChild(this.container);
     this.container.destroy({ children: true });
   }

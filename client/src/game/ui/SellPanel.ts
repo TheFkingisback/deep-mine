@@ -1,8 +1,9 @@
 import { Application, Container, Graphics, Text, TextStyle, Ticker } from 'pixi.js';
-import { PlayerState, InventorySlot } from '@shared/types';
+import { PlayerState, InventorySlot, ItemType } from '@shared/types';
 import { ITEMS } from '@shared/items';
 import { processSell, calculateSellValue } from '@shared/economy';
 import { removeItem } from '@shared/inventory';
+import { audioManager } from '../../audio/AudioManager';
 
 /**
  * Coin particle for sell animations.
@@ -422,14 +423,14 @@ export class SellPanel {
 
     if (result.success) {
       // Update player state (remove items)
-      removeItem(this.playerState.inventory, itemType, quantity);
+      removeItem(this.playerState.inventory, itemType as ItemType, quantity);
 
       // Spawn coin animation from button position
       const screenPos = button.toGlobal({ x: 25, y: 12 });
       this.spawnCoinParticles(screenPos.x, screenPos.y, 3);
 
-      // Play SFX (placeholder - would integrate with audio system)
-      console.log('🔊 sell_coin SFX');
+      // Play sell SFX
+      audioManager.playSFX('sell_coin', 0.5);
 
       // Update gold and refresh panel
       if (this.onSellCallback) {

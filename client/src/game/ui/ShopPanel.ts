@@ -3,6 +3,7 @@ import { PlayerState, EquipmentSlot, EquipmentTier } from '@shared/types';
 import { EQUIPMENT, getEquipmentPrice, getNextTier, canBuyEquipment } from '@shared/equipment';
 import { processEquipmentPurchase, processInventoryUpgrade } from '@shared/economy';
 import { INVENTORY_UPGRADE_SLOTS, INVENTORY_UPGRADE_PRICES } from '@shared/constants';
+import { audioManager } from '../../audio/AudioManager';
 
 type TabType = 'shovel' | 'helmet' | 'vest' | 'torch' | 'rope' | 'backpack';
 
@@ -611,7 +612,7 @@ export class ShopPanel {
       this.playerState.gold = result.newGold;
 
       // Play SFX
-      console.log('🔊 buy_equip SFX');
+      audioManager.playSFX('buy_equip', 0.5);
 
       // Callback
       if (this.onBuyCallback) {
@@ -641,7 +642,7 @@ export class ShopPanel {
       this.playerState.gold = result.newGold;
 
       // Play SFX
-      console.log('🔊 buy_equip SFX');
+      audioManager.playSFX('buy_equip', 0.5);
 
       // Callback
       if (this.onBuyCallback) {

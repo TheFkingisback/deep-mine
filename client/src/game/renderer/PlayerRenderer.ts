@@ -38,6 +38,7 @@ export class PlayerRenderer {
   private digAnimationCallback: ((ticker: Ticker) => void) | null = null;
   private stunAnimationCallback: ((ticker: Ticker) => void) | null = null;
   private celebrationAnimationCallback: ((ticker: Ticker) => void) | null = null;
+  private deathAnimationCallback: ((ticker: Ticker) => void) | null = null;
 
   // Equipment state
   private equipment: Record<EquipmentSlot, EquipmentTier> = {
@@ -649,6 +650,123 @@ export class PlayerRenderer {
   }
 
   /**
+   * Play the death animation.
+   * Character spins, eyes go X_X, shrinks with comedic bounce, stars fly off.
+   */
+  playDeathAnimation(onComplete?: () => void): void {
+    this.currentAnimation = 'stun'; // reuse stun slot to block other anims
+
+    // Remove previous animations
+    if (this.deathAnimationCallback) Ticker.shared.remove(this.deathAnimationCallback);
+    if (this.idleAnimationCallback) { Ticker.shared.remove(this.idleAnimationCallback); this.idleAnimationCallback = null; }
+
+    this.animationTimer = 0;
+    const duration = 2000;
+
+    // Make eyes X_X
+    this.leftEye.clear();
+    this.leftEye.moveTo(-6, -30); this.leftEye.lineTo(-2, -26); this.leftEye.stroke({ width: 2, color: 0x000000 });
+    this.leftEye.moveTo(-2, -30); this.leftEye.lineTo(-6, -26); this.leftEye.stroke({ width: 2, color: 0x000000 });
+    this.rightEye.clear();
+    this.rightEye.moveTo(2, -30); this.rightEye.lineTo(6, -26); this.rightEye.stroke({ width: 2, color: 0x000000 });
+    this.rightEye.moveTo(6, -30); this.rightEye.lineTo(2, -26); this.rightEye.stroke({ width: 2, color: 0x000000 });
+
+    // Create stars that orbit and fly off
+    const stars: Graphics[] = [];
+    for (let i = 0; i < 5; i++) {
+      const star = new Graphics();
+      this.drawStar(star, 0, 0, 5, 6, 3);
+      star.fill(i % 2 === 0 ? 0xFFFF00 : 0xFF6600);
+      this.characterContainer.addChild(star);
+      stars.push(star);
+    }
+
+    // Create swirl/dizzy circles
+    const swirls: Graphics[] = [];
+    for (let i = 0; i < 3; i++) {
+      const swirl = new Graphics();
+      swirl.circle(0, 0, 3);
+      swirl.fill(0xFF4444);
+      this.characterContainer.addChild(swirl);
+      swirls.push(swirl);
+    }
+
+    this.deathAnimationCallback = (ticker: Ticker) => {
+      if (!this.characterContainer) {
+        stars.forEach(s => s.destroy());
+        swirls.forEach(s => s.destroy());
+        if (this.deathAnimationCallback) ticker.remove(this.deathAnimationCallback);
+        return;
+      }
+
+      this.animationTimer += ticker.deltaMS;
+      const progress = Math.min(this.animationTimer / duration, 1);
+
+      // Phase 1 (0-0.3): Spin fast + bounce up
+      // Phase 2 (0.3-0.7): Spin slower + shrink + stars fly out
+      // Phase 3 (0.7-1.0): Fade out
+
+      if (progress < 0.3) {
+        // Spin fast and bounce
+        const p = progress / 0.3;
+        this.characterContainer.rotation = p * Math.PI * 4;
+        this.characterContainer.y = -Math.sin(p * Math.PI) * 40;
+        this.characterContainer.scale.set(1 + 0.2 * Math.sin(p * Math.PI * 3));
+      } else if (progress < 0.7) {
+        // Spin slower, shrink
+        const p = (progress - 0.3) / 0.4;
+        this.characterContainer.rotation = Math.PI * 4 + p * Math.PI * 2;
+        this.characterContainer.y = -10 * (1 - p);
+        const scale = 1.0 - p * 0.5;
+        this.characterContainer.scale.set(scale);
+      } else {
+        // Fade out
+        const p = (progress - 0.7) / 0.3;
+        this.characterContainer.rotation = Math.PI * 6;
+        this.characterContainer.alpha = 1 - p;
+        this.characterContainer.scale.set(0.5 - p * 0.3);
+      }
+
+      // Stars orbit and fly outward
+      stars.forEach((star, i) => {
+        const angle = progress * Math.PI * 6 + (i * Math.PI * 2 / stars.length);
+        const orbitRadius = 20 + progress * 60;
+        star.x = Math.cos(angle) * orbitRadius;
+        star.y = -25 + Math.sin(angle) * orbitRadius;
+        star.rotation = progress * Math.PI * 8;
+        star.alpha = 1 - progress;
+        star.scale.set(1 - progress * 0.5);
+      });
+
+      // Swirls spiral upward
+      swirls.forEach((swirl, i) => {
+        const angle = progress * Math.PI * 4 + (i * Math.PI * 2 / swirls.length);
+        swirl.x = Math.cos(angle) * (10 + progress * 30);
+        swirl.y = -30 - progress * 50 + Math.sin(angle) * 10;
+        swirl.alpha = 1 - progress;
+      });
+
+      if (progress >= 1) {
+        // Clean up
+        stars.forEach(s => { if (s.parent) s.parent.removeChild(s); s.destroy(); });
+        swirls.forEach(s => { if (s.parent) s.parent.removeChild(s); s.destroy(); });
+        this.characterContainer.rotation = 0;
+        this.characterContainer.scale.set(1);
+        this.characterContainer.alpha = 1;
+        this.characterContainer.y = 0;
+        this.currentAnimation = null;
+        if (this.deathAnimationCallback) {
+          ticker.remove(this.deathAnimationCallback);
+          this.deathAnimationCallback = null;
+        }
+        if (onComplete) onComplete();
+      }
+    };
+
+    Ticker.shared.add(this.deathAnimationCallback);
+  }
+
+  /**
    * Set the character's facing direction.
    *
    * @param dir - Direction to face
@@ -764,6 +882,10 @@ export class PlayerRenderer {
     if (this.celebrationAnimationCallback) {
       Ticker.shared.remove(this.celebrationAnimationCallback);
       this.celebrationAnimationCallback = null;
+    }
+    if (this.deathAnimationCallback) {
+      Ticker.shared.remove(this.deathAnimationCallback);
+      this.deathAnimationCallback = null;
     }
 
     // Reset animation state

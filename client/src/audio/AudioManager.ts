@@ -1,4 +1,4 @@
-import { Howl } from 'howler';
+import { Howl, Howler } from 'howler';
 import { SFX } from './SFX';
 
 /**
@@ -70,7 +70,7 @@ export class AudioManager {
       onload: () => {
         console.log(`📻 Music track loaded: ${name}`);
       },
-      onloaderror: (id, error) => {
+      onloaderror: (id: number, error: unknown) => {
         console.error(`Failed to load music track ${name}:`, error);
       }
     });

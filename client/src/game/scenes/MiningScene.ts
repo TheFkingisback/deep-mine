@@ -2,9 +2,11 @@ import { Application, Container, Text, TextStyle, FederatedPointerEvent, Graphic
 import { BlockRenderer } from '../renderer/BlockRenderer';
 import { PlayerRenderer } from '../renderer/PlayerRenderer';
 import { ItemDropRenderer } from '../renderer/ItemDropRenderer';
+import { OtherPlayerRenderer } from '../renderer/OtherPlayerRenderer';
 import { LightingSystem } from '../systems/LightingSystem';
 import { CameraSystem } from '../systems/CameraSystem';
 import { HUD } from '../ui/HUD';
+import { PlayerInfoBox } from '../ui/PlayerInfoBox';
 import { InventoryPanel } from '../ui/InventoryPanel';
 import { CheckpointReplacePanel } from '../ui/CheckpointReplacePanel';
 import { ExplosionEffect } from '../effects/ExplosionEffect';
@@ -18,7 +20,10 @@ import { createRNG } from '@shared/world-gen';
 import { rollEvent, applyEvent } from '@shared/events';
 import { calculateFullExplosion } from '@shared/tnt';
 import { addItem } from '@shared/inventory';
-import { STUN_DURATION, TNT_CHAIN_DELAY, BLOCK_SIZE } from '@shared/constants';
+import { BLOCK_SIZE } from '@shared/constants';
+import { audioManager } from '../../audio/AudioManager';
+import type { Connection } from '../../networking/Connection';
+import type { MessageHandler } from '../../networking/MessageHandler';
 
 /**
  * MiningScene is the main gameplay scene.
@@ -71,13 +76,38 @@ export class MiningScene {
   // Ascent animation
   private isAscending = false;
 
+  // Death animation
+  private isDying = false;
+
   // Callbacks
   private onSurfaceCallback: (() => void) | null = null;
+  private onGameOverCallback: (() => void) | null = null;
 
-  constructor(app: Application, playerState: PlayerState) {
+  // Multiplayer
+  private connection: Connection | null = null;
+  private messageHandler: MessageHandler | null = null;
+  private otherPlayerRenderer: OtherPlayerRenderer;
+  private moveSeq = 0;
+  private matchId: string;
+  private initialPlayers: { playerId: string; displayName: string; x: number; y: number }[];
+  private playerInfoBox!: PlayerInfoBox;
+
+  constructor(
+    app: Application,
+    playerState: PlayerState,
+    connection?: Connection,
+    messageHandler?: MessageHandler,
+    serverSeed?: number,
+    matchId?: string,
+    initialPlayers?: { playerId: string; displayName: string; x: number; y: number }[],
+  ) {
     this.app = app;
     this.playerState = playerState;
-    this.worldSeed = Math.floor(Math.random() * 1000000);
+    this.connection = connection ?? null;
+    this.messageHandler = messageHandler ?? null;
+    this.matchId = matchId ?? '';
+    this.initialPlayers = initialPlayers ?? [];
+    this.worldSeed = serverSeed ?? Math.floor(Math.random() * 1000000);
     this.rng = createRNG(this.worldSeed + Date.now());
 
     // Create container
@@ -92,10 +122,12 @@ export class MiningScene {
     this.blockRenderer = new BlockRenderer(this.container);
     this.particleSystem = new ParticleSystem(this.container);
     this.playerRenderer = new PlayerRenderer(this.app.stage); // Player in separate layer
+    this.otherPlayerRenderer = new OtherPlayerRenderer(this.container);
     this.itemDropRenderer = new ItemDropRenderer(this.container);
     this.lightingSystem = new LightingSystem(this.app);
     this.cameraSystem = new CameraSystem(this.app.screen.width, this.app.screen.height);
     this.hud = new HUD(this.app);
+    this.playerInfoBox = new PlayerInfoBox(this.app.stage, this.app.screen.width);
     this.inventoryPanel = new InventoryPanel(this.app);
     this.checkpointReplacePanel = new CheckpointReplacePanel(this.app, (oldDepth, newDepth) => {
       // Remove old checkpoint and add new one
@@ -126,7 +158,7 @@ export class MiningScene {
    */
   private digInDirection(dx: number, dy: number): void {
     // Check if player is stunned or ascending
-    if (this.playerState.isStunned || this.isAscending) {
+    if (this.playerState.isStunned || this.isAscending || this.isDying) {
       return;
     }
 
@@ -143,6 +175,7 @@ export class MiningScene {
       this.playerState.position.x = targetX;
       this.playerState.position.y = targetY;
       this.applyGravity();
+      this.sendMove();
       this.renderWorld();
       return;
     }
@@ -166,8 +199,9 @@ export class MiningScene {
     // Apply damage to block
     block.hp = Math.max(0, block.hp - damage);
 
-    // Play dig animation
+    // Play dig animation + sound
     this.playerRenderer.playDigAnimation();
+    audioManager.playSFX('dig_dirt', 0.4);
 
     console.log(`Digging block at (${targetX}, ${targetY}): HP ${block.hp}/${block.maxHp}`);
 
@@ -199,8 +233,8 @@ export class MiningScene {
       // Ignore key repeat - one action per key press only
       if (event.repeat) return;
 
-      // Ignore if player is stunned or ascending
-      if (this.playerState.isStunned || this.isAscending) {
+      // Ignore if player is stunned, ascending, or dying
+      if (this.playerState.isStunned || this.isAscending || this.isDying) {
         return;
       }
 
@@ -259,9 +293,18 @@ export class MiningScene {
 
     // Initialize HUD
     this.hud.updateGold(this.playerState.gold);
-    this.hud.updateDepth(this.playerState.position.y);
+    this.hud.updateLives(this.playerState.lives);
+    this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
     this.hud.updateItems(this.playerState.inventory);
     this.updateHUDCheckpoints();
+
+    // Set up multiplayer message handlers
+    this.setupMultiplayerHandlers();
+
+    // Add initial players from match data
+    for (const p of this.initialPlayers) {
+      this.otherPlayerRenderer.addPlayer(p.playerId, p.displayName, p.x, p.y);
+    }
 
     // Initial render
     this.renderWorld();
@@ -270,14 +313,108 @@ export class MiningScene {
   }
 
   /**
+   * Set up handlers for multiplayer messages from the server.
+   */
+  private setupMultiplayerHandlers(): void {
+    if (!this.messageHandler) return;
+
+    this.messageHandler.on('other_player_joined', (msg) => {
+      console.log(`👤 Player joined: ${msg.displayName} at (${msg.x}, ${msg.y})`);
+      this.otherPlayerRenderer.addPlayer(msg.playerId, msg.displayName, msg.x, msg.y);
+      this.hud.showFloatingText(
+        `${msg.displayName} joined!`,
+        this.app.screen.width / 2,
+        this.app.screen.height * 0.3,
+        '#00FF00'
+      );
+    });
+
+    this.messageHandler.on('other_player_update', (msg) => {
+      if (!this.otherPlayerRenderer.hasPlayer(msg.playerId)) {
+        this.otherPlayerRenderer.addPlayer(msg.playerId, msg.displayName, msg.x, msg.y);
+      }
+      this.otherPlayerRenderer.updatePlayer(msg.playerId, msg.x, msg.y, msg.action, msg.equipment);
+    });
+
+    this.messageHandler.on('other_player_left', (msg) => {
+      const hadPlayer = this.otherPlayerRenderer.hasPlayer(msg.playerId);
+      this.otherPlayerRenderer.removePlayer(msg.playerId);
+      if (hadPlayer) {
+        this.hud.showFloatingText(
+          'A player left',
+          this.app.screen.width / 2,
+          this.app.screen.height * 0.3,
+          '#FF6666'
+        );
+      }
+    });
+
+    this.messageHandler.on('player_info_update', (msg) => {
+      this.playerInfoBox.updatePlayer(msg);
+    });
+
+    this.messageHandler.on('block_destroyed', (msg) => {
+      // Only handle blocks destroyed by OTHER players
+      if (msg.actor === this.playerState.id) return;
+
+      const blockKey = `${msg.x},${msg.y}`;
+      this.worldBlocks.delete(blockKey);
+
+      // Update chunk data
+      const chunkY = Math.floor(msg.y / 32);
+      const chunk = this.loadedChunks.get(chunkY);
+      if (chunk) {
+        const localX = msg.x % 20;
+        const localY = msg.y % 32;
+        if (chunk.blocks[localX] && chunk.blocks[localX][localY]) {
+          chunk.blocks[localX][localY].type = BlockType.EMPTY;
+          chunk.blocks[localX][localY].hp = 0;
+        }
+      }
+
+      // Show the drop if the server tells us about one
+      if (msg.drop) {
+        this.createDrop(msg.drop.position.x, msg.drop.position.y, msg.drop.itemType);
+      }
+
+      // Particle burst at the destroyed block
+      const layer = getLayerAtDepth(msg.y);
+      const blockColor = parseInt(layer.color.replace('#', ''), 16);
+      this.particleSystem.emit(ParticleSystem.DIG_BURST(
+        { x: msg.x * BLOCK_SIZE + BLOCK_SIZE / 2, y: msg.y * BLOCK_SIZE + BLOCK_SIZE / 2 },
+        blockColor
+      ));
+
+      // Apply gravity — if another player digs the block below us, we should fall
+      this.applyGravity();
+      this.sendMove();
+
+      this.renderWorld();
+    });
+  }
+
+  /**
+   * Send player position to the server.
+   */
+  private sendMove(): void {
+    if (!this.connection) return;
+    this.connection.send({
+      type: 'move',
+      seq: ++this.moveSeq,
+      x: this.playerState.position.x,
+      y: this.playerState.position.y,
+    });
+  }
+
+  /**
    * Handle click/tap input for digging.
    */
   private handleClick(event: FederatedPointerEvent): void {
     console.log(`\n🖱️ CLICK at screen (${event.global.x.toFixed(0)}, ${event.global.y.toFixed(0)})`);
 
-    // Check if player is stunned or ascending
-    if (this.playerState.isStunned) {
-      console.log('❌ Cannot dig while stunned!');
+    // Check if player is stunned, ascending, or dying
+    if (this.playerState.isStunned || this.isDying) {
+      console.log('❌ Cannot dig while stunned/dying!');
       return;
     }
 
@@ -520,6 +657,7 @@ export class MiningScene {
    */
   private destroyBlock(x: number, y: number, block: Block): void {
     console.log(`Block destroyed at (${x}, ${y})`);
+    audioManager.playSFX('block_break', 0.5);
 
     // Emit dig burst particles at block world position
     const layer = getLayerAtDepth(y);
@@ -568,6 +706,22 @@ export class MiningScene {
 
     // Apply gravity (player falls if block below them was destroyed)
     this.applyGravity();
+    this.sendDig(x, y);
+    this.sendMove();
+  }
+
+  /**
+   * Send dig action to the server so other players see the block destroyed.
+   */
+  private sendDig(x: number, y: number): void {
+    if (!this.connection) return;
+    this.connection.send({
+      type: 'dig',
+      seq: ++this.moveSeq,
+      x,
+      y,
+      timestamp: Date.now(),
+    });
   }
 
   /**
@@ -575,6 +729,7 @@ export class MiningScene {
    */
   private handleTNTExplosion(x: number, y: number): void {
     console.log('💥 TNT Explosion!');
+    audioManager.playSFX('tnt_fuse', 0.6);
 
     // Check if TNT was visible (within torch radius)
     const torchRadius = getTorchRadius(this.playerState.equipment.torch);
@@ -624,6 +779,9 @@ export class MiningScene {
     // Execute each explosion phase with proper delays
     explosion.phases.forEach((phase, phaseIndex) => {
       setTimeout(() => {
+        // Play explosion sound for this phase
+        audioManager.playSFX('tnt_explode', 0.7);
+
         // Play explosion effect for this phase
         ExplosionEffect.play(
           phase.center,
@@ -678,47 +836,77 @@ export class MiningScene {
           phaseIndex * 40 // Stack penalties vertically
         );
 
-        // On first explosion, launch player and apply effects
+        // On first explosion, play death animation and lose a life
         if (phaseIndex === 0) {
           // Apply gold penalty
           this.playerState.gold = Math.max(0, this.playerState.gold - explosion.totalGoldPenalty);
           this.hud.updateGold(this.playerState.gold);
 
-          // Show "BROKE!" if gold reaches 0
-          if (this.playerState.gold === 0) {
-            const brokeStyle = new TextStyle({
-              fontFamily: 'Arial, sans-serif',
-              fontSize: 36,
-              fontWeight: 'bold',
-              fill: '#FF0000',
-              stroke: { color: '#000000', width: 6 }
-            });
-            const brokeText = new Text({ text: 'BROKE!', style: brokeStyle });
-            brokeText.anchor.set(0.5);
-            brokeText.x = screenCenterX;
-            brokeText.y = screenCenterY + 100;
-            this.container.addChild(brokeText);
+          // Lose a life
+          this.playerState.lives = Math.max(0, this.playerState.lives - 1);
+          this.hud.updateLives(this.playerState.lives);
+          console.log(`TNT hit! Lives remaining: ${this.playerState.lives}`);
 
-            setTimeout(() => {
-              this.container.removeChild(brokeText);
-              brokeText.destroy();
-            }, 2000);
-          }
+          // Block input during death animation
+          this.isDying = true;
 
-          // Launch player upward with smooth animation
-          this.startPlayerLaunch(explosion.totalLaunchDistance);
+          // Show funny death text
+          const deathTexts = ['OUCH!', 'BOOM!', 'KABOOM!', 'AAARGH!', 'NOT AGAIN!'];
+          const deathMsg = deathTexts[Math.floor(Math.random() * deathTexts.length)];
+          const deathStyle = new TextStyle({
+            fontFamily: 'Arial, sans-serif', fontSize: 48, fontWeight: 'bold', fill: '#FF4444',
+            stroke: { color: '#000000', width: 6 },
+          });
+          const deathText = new Text({ text: deathMsg, style: deathStyle });
+          deathText.anchor.set(0.5);
+          deathText.x = screenCenterX;
+          deathText.y = screenCenterY - 80;
+          this.app.stage.addChild(deathText);
 
-          // Apply stun state
-          this.playerState.isStunned = true;
-          this.playerState.stunEndTime = Date.now() + STUN_DURATION;
-          this.playerRenderer.playStunAnimation();
+          // Show lives remaining
+          const livesStyle = new TextStyle({
+            fontFamily: 'Arial, sans-serif', fontSize: 28, fontWeight: 'bold',
+            fill: this.playerState.lives > 0 ? '#FFAA00' : '#FF0000',
+            stroke: { color: '#000000', width: 4 },
+          });
+          const livesMsg = this.playerState.lives > 0
+            ? `Lives: ${'❤️'.repeat(this.playerState.lives)}`
+            : 'GAME OVER';
+          const livesText = new Text({ text: livesMsg, style: livesStyle });
+          livesText.anchor.set(0.5);
+          livesText.x = screenCenterX;
+          livesText.y = screenCenterY + 60;
+          this.app.stage.addChild(livesText);
 
-          // Remove stun after duration
-          setTimeout(() => {
-            this.playerState.isStunned = false;
-            this.playerState.stunEndTime = null;
-            console.log('Stun ended - player can move again');
-          }, STUN_DURATION);
+          // Animate the death text (bounce + fade)
+          const textStart = Date.now();
+          const animateText = () => {
+            const elapsed = Date.now() - textStart;
+            if (elapsed > 2000) {
+              this.app.stage.removeChild(deathText);
+              this.app.stage.removeChild(livesText);
+              deathText.destroy();
+              livesText.destroy();
+              return;
+            }
+            const p = elapsed / 2000;
+            deathText.scale.set(1 + 0.3 * Math.sin(p * Math.PI * 3));
+            deathText.rotation = Math.sin(p * Math.PI * 6) * 0.1;
+            deathText.alpha = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+            livesText.alpha = p < 0.7 ? 1 : 1 - (p - 0.7) / 0.3;
+            requestAnimationFrame(animateText);
+          };
+          requestAnimationFrame(animateText);
+
+          // Play funny death animation on player, then go to surface or game over
+          this.playerRenderer.playDeathAnimation(() => {
+            this.isDying = false;
+            if (this.playerState.lives <= 0) {
+              if (this.onGameOverCallback) this.onGameOverCallback();
+            } else {
+              if (this.onSurfaceCallback) this.onSurfaceCallback();
+            }
+          });
         }
 
         // Re-render world after each explosion
@@ -733,7 +921,7 @@ export class MiningScene {
   private startPlayerLaunch(launchDistance: number): void {
     this.isLaunching = true;
     this.launchStartY = this.playerState.position.y;
-    this.launchTargetY = Math.max(0, this.playerState.position.y - launchDistance);
+    this.launchTargetY = Math.max(1, this.playerState.position.y - launchDistance);
     this.launchProgress = 0;
   }
 
@@ -816,14 +1004,14 @@ export class MiningScene {
 
       // Render
       this.renderWorld();
-      this.hud.updateDepth(Math.floor(this.playerState.position.y));
+      this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
 
       if (progress >= 1) {
         clearInterval(ascentInterval);
         this.isAscending = false;
         this.playerState.position.y = 1;
         this.playerState.isOnSurface = true;
-        this.hud.updateDepth(1);
+        this.hud.updatePosition(this.playerState.position.x, 1);
 
         // Remove rope visual
         this.app.stage.removeChild(ropeGraphic);
@@ -879,7 +1067,7 @@ export class MiningScene {
 
       // Render
       this.renderWorld();
-      this.hud.updateDepth(Math.floor(this.playerState.position.y));
+      this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
 
       if (progress >= 1) {
         clearInterval(descentInterval);
@@ -1038,6 +1226,12 @@ export class MiningScene {
    * Apply gravity to player.
    */
   private applyGravity(): void {
+    // Safety: clamp player above surface
+    if (this.playerState.position.y < 1) {
+      this.playerState.position.y = 1;
+      return;
+    }
+
     // Check if block below player is empty
     const belowX = this.playerState.position.x;
     const belowY = this.playerState.position.y + 1;
@@ -1084,6 +1278,7 @@ export class MiningScene {
 
         if (result.success) {
           console.log(`Collected: ${drop.itemType}`);
+          audioManager.playSFX('item_collect', 0.5);
 
           // Play collection animation and remove visual
           this.itemDropRenderer.removeDrop(id);
@@ -1101,6 +1296,7 @@ export class MiningScene {
           );
         } else if (result.overflow > 0) {
           console.log('Inventory full!');
+          audioManager.playSFX('error', 0.4);
           this.showFloatingText(
             this.app.screen.width / 2,
             this.app.screen.height / 2,
@@ -1321,18 +1517,21 @@ export class MiningScene {
     // Update player renderer
     this.playerRenderer.update(delta);
 
+    // Update other players
+    this.otherPlayerRenderer.update(deltaMs);
+
     // Update lighting system
     this.lightingSystem.update(delta);
 
     // Update HUD
     this.hud.update(deltaMs);
-    this.hud.updateDepth(this.playerState.position.y);
+    this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
 
     // Update inventory panel
     this.inventoryPanel.update(deltaMs);
 
-    // Apply gravity (skip during launch and ascent/descent animations)
-    if (!this.isLaunching && !this.isAscending) {
+    // Apply gravity (skip during launch, ascent/descent, and death animations)
+    if (!this.isLaunching && !this.isAscending && !this.isDying) {
       this.applyGravity();
     }
 
@@ -1353,6 +1552,10 @@ export class MiningScene {
     this.onSurfaceCallback = callback;
   }
 
+  setGameOverCallback(callback: () => void): void {
+    this.onGameOverCallback = callback;
+  }
+
   /**
    * Clean up the scene.
    */
@@ -1362,9 +1565,11 @@ export class MiningScene {
     this.blockRenderer.clear();
     this.particleSystem.destroy();
     this.playerRenderer.destroy();
+    this.otherPlayerRenderer.destroy();
     this.itemDropRenderer.destroy();
     this.lightingSystem.destroy();
     this.hud.destroy();
+    this.playerInfoBox.destroy();
     this.inventoryPanel.destroy();
     this.checkpointReplacePanel.destroy();
     this.app.stage.removeChild(this.container);

@@ -33,6 +33,9 @@ export class HUD {
   private surfaceButton: Container;
   private checkpointButton: Container;
 
+  // Lives display
+  private livesText: Text;
+
   // Gold rolling animation
   private displayedGold = 0;
   private targetGold = 0;
@@ -55,6 +58,7 @@ export class HUD {
 
     // Create display elements
     this.goldText = this.createGoldDisplay();
+    this.livesText = this.createLivesDisplay();
     this.depthText = this.createDepthDisplay();
     this.layerText = this.createLayerDisplay();
 
@@ -78,6 +82,7 @@ export class HUD {
 
     // Add all to container
     this.container.addChild(this.goldText);
+    this.container.addChild(this.livesText);
     this.container.addChild(this.depthText);
     this.container.addChild(this.layerText);
     this.container.addChild(this.itemsBarContainer);
@@ -99,6 +104,18 @@ export class HUD {
     const text = new Text({ text: 'G 0', style });
     text.x = 12;
     text.y = 8;
+    return text;
+  }
+
+  private createLivesDisplay(): Text {
+    const style = new TextStyle({
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 18,
+      fontWeight: 'bold',
+      fill: '#FF4444',
+      dropShadow: { color: '#000000', blur: 3, angle: Math.PI / 4, distance: 2 }
+    });
+    const text = new Text({ text: '❤️❤️', style });
     return text;
   }
 
@@ -271,14 +288,35 @@ export class HUD {
     }
   }
 
-  updateDepth(depth: number): void {
-    const d = Math.floor(depth);
-    this.depthText.text = `Depth: ${d}`;
+  updateLives(lives: number): void {
+    if (lives <= 0) {
+      this.livesText.text = '💀';
+      this.livesText.style.fill = '#666666';
+    } else {
+      this.livesText.text = '❤️'.repeat(lives);
+      this.livesText.style.fill = '#FF4444';
+    }
+  }
 
-    // Update layer name with ambient color
-    const layer = getLayerAtDepth(d);
-    this.layerText.text = layer.displayName;
-    this.layerText.style.fill = layer.ambientColor;
+  updateDepth(depth: number): void {
+    this.updatePosition(0, depth);
+  }
+
+  updatePosition(x: number, y: number): void {
+    const ix = Math.floor(x);
+    const iy = Math.floor(y);
+
+    if (iy <= 1) {
+      this.depthText.text = 'Surface';
+      this.depthText.style.fill = '#88FF88';
+      this.layerText.text = '';
+    } else {
+      this.depthText.text = `X: ${ix}  Y: ${iy}`;
+      this.depthText.style.fill = '#FFFFFF';
+      const layer = getLayerAtDepth(iy);
+      this.layerText.text = layer.displayName;
+      this.layerText.style.fill = layer.ambientColor;
+    }
   }
 
   updateInventory(_used: number, _max: number): void {
@@ -351,6 +389,10 @@ export class HUD {
 
     this.goldText.x = 12;
     this.goldText.y = 8;
+
+    // Lives next to gold
+    this.livesText.x = 120;
+    this.livesText.y = 9;
 
     this.depthText.x = width - this.depthText.width - 12;
     this.depthText.y = 8;

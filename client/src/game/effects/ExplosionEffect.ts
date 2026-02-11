@@ -79,7 +79,7 @@ export class ExplosionEffect {
     let elapsed = 0;
     const totalDuration = 800;
 
-    const ticker = app.ticker.add((delta) => {
+    const tickerCallback = (delta: { deltaTime: number }) => {
       const deltaMs = delta.deltaTime * 16.67;
       elapsed += deltaMs;
 
@@ -91,12 +91,13 @@ export class ExplosionEffect {
 
       // Complete animation
       if (elapsed >= totalDuration) {
-        app.ticker.remove(ticker);
+        app.ticker.remove(tickerCallback);
         container.removeChild(explosionContainer);
         explosionContainer.destroy({ children: true });
         onComplete();
       }
-    });
+    };
+    app.ticker.add(tickerCallback);
   }
 
   /**
