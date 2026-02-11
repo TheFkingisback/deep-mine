@@ -1,7 +1,9 @@
 import { WebSocket } from 'ws';
-import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 import { WorldManager } from './shard/WorldManager.js';
-import { CHUNK_WIDTH } from '@shared/constants';
+import { CHUNK_WIDTH, BASE_INVENTORY_SLOTS } from '@shared/constants';
+import { DropItem, EquipmentSlot, InventorySlot } from '@shared/types';
+import { createInventory } from '@shared/inventory';
 
 export interface MatchPlayer {
   id: string;
@@ -11,6 +13,9 @@ export interface MatchPlayer {
   y: number;
   gold: number;
   items: { itemType: string; quantity: number }[];
+  equipment: Record<string, number>;
+  inventory: (InventorySlot | null)[];
+  inventoryUpgradeLevel: number;
 }
 
 export interface Match {
@@ -21,6 +26,7 @@ export interface Match {
   players: Map<string, MatchPlayer>;
   maxPlayers: number;
   createdAt: number;
+  droppedItems: Map<string, DropItem>;
 }
 
 export class MatchManager {
@@ -28,8 +34,9 @@ export class MatchManager {
   private playerToMatch = new Map<string, string>();
 
   createMatch(name: string, maxPlayers = 8): Match {
-    const id = uuidv4().slice(0, 8).toUpperCase();
-    const seed = Math.floor(Math.random() * 0xFFFFFFFF);
+    // H10: Use crypto.randomBytes instead of Math.random for IDs and seeds
+    const id = randomBytes(4).toString('hex').toUpperCase();
+    const seed = randomBytes(4).readUInt32BE(0);
     const match: Match = {
       id,
       name,
@@ -38,6 +45,7 @@ export class MatchManager {
       players: new Map(),
       maxPlayers,
       createdAt: Date.now(),
+      droppedItems: new Map(),
     };
     this.matches.set(id, match);
     console.log(`[Match] Created "${name}" (${id}) seed=${seed}`);
@@ -58,6 +66,15 @@ export class MatchManager {
       y: 1,
       gold: 0,
       items: [],
+      equipment: {
+        [EquipmentSlot.SHOVEL]: 1,
+        [EquipmentSlot.HELMET]: 1,
+        [EquipmentSlot.VEST]: 1,
+        [EquipmentSlot.TORCH]: 1,
+        [EquipmentSlot.ROPE]: 1,
+      },
+      inventory: createInventory(BASE_INVENTORY_SLOTS),
+      inventoryUpgradeLevel: 0,
     };
 
     match.players.set(playerId, player);
@@ -149,5 +166,11 @@ export class MatchManager {
         p.ws.send(data);
       }
     }
+  }
+
+  syncPlayerItems(mp: MatchPlayer): void {
+    mp.items = mp.inventory
+      .filter((s): s is InventorySlot => s !== null)
+      .map(s => ({ itemType: s.itemType, quantity: s.quantity }));
   }
 }

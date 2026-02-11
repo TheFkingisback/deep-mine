@@ -37,7 +37,8 @@ export class Game {
     // Connect to server (required for lobby)
     try {
       const wsHost = window.location.hostname || 'localhost';
-      this.connection = new Connection(`ws://${wsHost}:9001`);
+      const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      this.connection = new Connection(`${wsProtocol}://${wsHost}:9001`);
       await this.connection.connect();
       this.messageHandler = new MessageHandler(this.connection);
       console.log('🌐 Connected to server');
@@ -229,4 +230,5 @@ export class Game {
       this.switchScene('lobby');
     }, 3000);
   }
+
 }

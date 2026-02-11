@@ -191,6 +191,12 @@ export class ParticleSystem {
    * Recycle a particle back to the pool.
    */
   private recycleParticle(particle: Particle): void {
+    // M6: Cap pool size to prevent unbounded memory growth
+    if (this.pool.length >= this.maxParticles) {
+      this.container.removeChild(particle.graphics);
+      particle.graphics.destroy();
+      return;
+    }
     particle.graphics.visible = false;
     this.pool.push(particle);
   }

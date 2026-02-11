@@ -1323,16 +1323,26 @@ export class MiningScene {
       }
     }
 
-    // Unload chunks far away (more than 2 chunks from player)
+    // Unload chunks far away (more than 2 chunks from player) or over hard limit
+    const MAX_LOADED_CHUNKS = 6;
     const toUnload: number[] = [];
-    this.loadedChunks.forEach((chunk, chunkY) => {
+    this.loadedChunks.forEach((_chunk, chunkY) => {
       if (Math.abs(chunkY - playerChunkY) > 2) {
         toUnload.push(chunkY);
       }
     });
 
+    // Hard limit: evict farthest chunks if over budget
+    if (this.loadedChunks.size - toUnload.length > MAX_LOADED_CHUNKS) {
+      const sorted = [...this.loadedChunks.keys()]
+        .filter(cy => !toUnload.includes(cy))
+        .sort((a, b) => Math.abs(b - playerChunkY) - Math.abs(a - playerChunkY));
+      while (this.loadedChunks.size - toUnload.length > MAX_LOADED_CHUNKS && sorted.length > 0) {
+        toUnload.push(sorted.shift()!);
+      }
+    }
+
     toUnload.forEach(chunkY => {
-      console.log(`Unloading chunk ${chunkY}`);
       this.loadedChunks.delete(chunkY);
     });
   }

@@ -1,8 +1,15 @@
 import jwt from 'jsonwebtoken';
 import { v4 as uuidv4 } from 'uuid';
+import { randomBytes } from 'crypto';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'deep-mine-dev-secret';
-const JWT_EXPIRY = '24h';
+// SECURITY: Require JWT_SECRET from environment. Generate random fallback ONLY for dev.
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  const generated = randomBytes(32).toString('hex');
+  console.warn('[Auth] WARNING: JWT_SECRET not set. Generated ephemeral secret for development.');
+  console.warn('[Auth] Set JWT_SECRET environment variable for production.');
+  return generated;
+})();
+const JWT_EXPIRY = '1h';
 
 const ADJECTIVES = [
   'Brave', 'Swift', 'Bold', 'Lucky', 'Mighty', 'Clever', 'Dark', 'Iron',

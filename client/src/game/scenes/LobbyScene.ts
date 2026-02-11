@@ -35,6 +35,7 @@ export class LobbyScene {
 
   async init(): Promise<void> {
     this.drawBackground();
+    this.drawLogo();
     this.drawTitle();
     this.drawStatusText();
     this.showNameInput();
@@ -66,6 +67,64 @@ export class LobbyScene {
     this.container.addChild(this.background);
   }
 
+  private drawLogo(): void {
+    const cx = this.app.screen.width / 2;
+    const cy = 55;
+    const r = 38;
+    const logo = new Graphics();
+
+    // Orange circle badge
+    logo.circle(cx, cy, r);
+    logo.fill({ color: 0xff9f1c });
+    logo.circle(cx, cy, r);
+    logo.stroke({ color: 0xc46600, width: 3 });
+
+    // Pickaxe handle (diagonal line - dark outline)
+    logo.moveTo(cx - 10, cy + 14);
+    logo.lineTo(cx + 18, cy - 16);
+    logo.stroke({ color: 0x5a3010, width: 6 });
+    // Pickaxe handle (lighter inner)
+    logo.moveTo(cx - 10, cy + 14);
+    logo.lineTo(cx + 18, cy - 16);
+    logo.stroke({ color: 0x8B5A2B, width: 4 });
+
+    // Pickaxe head (metal tip) - using moveTo/lineTo path
+    logo.moveTo(cx + 16, cy - 18);
+    logo.lineTo(cx + 26, cy - 26);
+    logo.lineTo(cx + 28, cy - 14);
+    logo.lineTo(cx + 21, cy - 12);
+    logo.closePath();
+    logo.fill({ color: 0xd0d8e0 });
+    logo.moveTo(cx + 16, cy - 18);
+    logo.lineTo(cx + 26, cy - 26);
+    logo.lineTo(cx + 28, cy - 14);
+    logo.lineTo(cx + 21, cy - 12);
+    logo.closePath();
+    logo.stroke({ color: 0x8899aa, width: 1 });
+
+    // Gem (pentagon shape, bottom-left) - using moveTo/lineTo path
+    logo.moveTo(cx - 14, cy + 2);
+    logo.lineTo(cx - 6, cy + 6);
+    logo.lineTo(cx - 8, cy + 16);
+    logo.lineTo(cx - 18, cy + 16);
+    logo.lineTo(cx - 20, cy + 6);
+    logo.closePath();
+    logo.fill({ color: 0xff6600 });
+    logo.moveTo(cx - 14, cy + 2);
+    logo.lineTo(cx - 6, cy + 6);
+    logo.lineTo(cx - 8, cy + 16);
+    logo.lineTo(cx - 18, cy + 16);
+    logo.lineTo(cx - 20, cy + 6);
+    logo.closePath();
+    logo.stroke({ color: 0xcc5500, width: 1 });
+
+    // Gem highlight
+    logo.circle(cx - 16, cy + 7, 2);
+    logo.fill({ color: 0xffffff, alpha: 0.5 });
+
+    this.container.addChild(logo);
+  }
+
   private drawTitle(): void {
     const style = new TextStyle({
       fontFamily: 'Arial, sans-serif', fontSize: 48, fontWeight: 'bold', fill: '#F0A500',
@@ -74,14 +133,14 @@ export class LobbyScene {
     this.titleText = new Text({ text: 'DEEP MINE', style });
     this.titleText.anchor.set(0.5, 0);
     this.titleText.x = this.app.screen.width / 2;
-    this.titleText.y = 40;
+    this.titleText.y = 100;
     this.container.addChild(this.titleText);
 
     const subStyle = new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 18, fill: '#AAAACC' });
     const subtitle = new Text({ text: 'Cooperative Mining Adventure', style: subStyle });
     subtitle.anchor.set(0.5, 0);
     subtitle.x = this.app.screen.width / 2;
-    subtitle.y = 100;
+    subtitle.y = 155;
     this.container.addChild(subtitle);
   }
 
@@ -102,7 +161,7 @@ export class LobbyScene {
     this.nameInput = '';
     this.mode = 'name_input';
     const cx = this.app.screen.width / 2;
-    const y = 180;
+    const y = 200;
 
     const instrContainer = new Container();
     const instr = new Text({ text: 'Choose your name:', style: new TextStyle({ fontFamily: 'Arial, sans-serif', fontSize: 20, fill: '#CCCCEE' }) });
@@ -166,7 +225,7 @@ export class LobbyScene {
     this.clearButtons();
     this.mode = 'menu';
     const cx = this.app.screen.width / 2;
-    const startY = 180;
+    const startY = 200;
     const gap = 70;
 
     this.createButton('Quick Play', cx, startY, 260, 50, 0x2d6a4f, () => {
@@ -295,7 +354,7 @@ export class LobbyScene {
     this.mode = 'match_list';
     this.setStatus('');
     const cx = this.app.screen.width / 2;
-    let y = 180;
+    let y = 200;
 
     if (msg.matches.length === 0) {
       const c = new Container();

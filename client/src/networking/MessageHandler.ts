@@ -35,8 +35,8 @@ export class MessageHandler {
     for (const handler of list) {
       try {
         handler(msg);
-      } catch (err) {
-        console.error(`[MessageHandler] Error handling ${msg.type}:`, err);
+      } catch {
+        // Silently ignore handler errors in production
       }
     }
   }

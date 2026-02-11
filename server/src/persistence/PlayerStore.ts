@@ -78,7 +78,7 @@ export class PlayerStore {
       inventory: state.inventory
         .map((slot, index) => slot ? { slotIndex: index, itemType: slot.itemType as string, quantity: slot.quantity } : null)
         .filter((s): s is { slotIndex: number; itemType: string; quantity: number } => s !== null),
-      checkpoints: state.checkpoints.map(pos => ({ shardId: 'default', depth: pos.y })),
+      checkpoints: state.checkpoints.map(depth => ({ shardId: 'default', depth })),
     };
 
     // Preserve existing display name
@@ -164,10 +164,11 @@ export class PlayerStore {
       maxInventorySlots: stored.inventorySlots,
       inventoryUpgradeLevel: stored.inventoryLevel,
       maxDepthReached: stored.maxDepthReached,
-      checkpoints: stored.checkpoints.map(c => ({ x: 10, y: c.depth } as Position)),
+      checkpoints: stored.checkpoints.map(c => c.depth),
       isStunned: false,
       stunEndTime: null,
       isOnSurface: true,
+      lives: 2,
     };
   }
 }
