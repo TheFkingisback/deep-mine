@@ -38,7 +38,7 @@ export class PlayerInfoBox {
   private players: Map<string, PlayerInfo> = new Map();
   private selfPlayerId: string;
   private panelX: number;
-  private readonly panelY = 10;
+  private readonly panelY = 76;
 
   constructor(parentContainer: Container, screenWidth: number, selfPlayerId = '') {
     this.selfPlayerId = selfPlayerId;

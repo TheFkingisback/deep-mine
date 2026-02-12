@@ -374,6 +374,8 @@ export class MiningScene {
     });
 
     this.registerHandler('player_info_update', (msg) => {
+      // Skip self — syncSelfPlayerInfo provides more accurate real-time local data
+      if (msg.playerId === this.playerState.id) return;
       this.playerInfoBox.updatePlayer(msg);
     });
 
