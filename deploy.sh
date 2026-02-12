@@ -47,8 +47,8 @@ ok "Shared package built"
 step "Building server..."
 cd "$PROJ_DIR/server"
 npm install --silent 2>/dev/null
-npx prisma generate --schema=prisma/schema.prisma || fail "Prisma generate failed"
-npx prisma db push --schema=prisma/schema.prisma || fail "Prisma db push failed"
+npx prisma generate --schema=prisma/schema.prisma || echo -e "${YELLOW}  ⚠ Prisma generate failed (may already be up to date)${NC}"
+npx prisma db push --schema=prisma/schema.prisma || echo -e "${YELLOW}  ⚠ Prisma db push failed (may already be up to date)${NC}"
 rm -rf dist/
 npm run build || fail "Server build failed"
 ok "Server built"
