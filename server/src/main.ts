@@ -137,7 +137,7 @@ httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
         nickname: String(body.nickname ?? ''),
       });
       sendJson(res, result.success ? 200 : 400, result);
-    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    } catch (err) { console.error('[API] Error:', err); sendJson(res, 400, { success: false, error: 'Invalid request' }); }
     return;
   }
 
@@ -146,7 +146,7 @@ httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       const body = await parseJsonBody(req);
       const result = await UserService.login(String(body.email ?? ''), String(body.password ?? ''));
       sendJson(res, result.success ? 200 : 401, result);
-    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    } catch (err) { console.error('[API] Error:', err); sendJson(res, 400, { success: false, error: 'Invalid request' }); }
     return;
   }
 
@@ -155,7 +155,7 @@ httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       const body = await parseJsonBody(req);
       const result = await UserService.forgotPassword(String(body.email ?? ''));
       sendJson(res, 200, result);
-    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    } catch (err) { console.error('[API] Error:', err); sendJson(res, 400, { success: false, error: 'Invalid request' }); }
     return;
   }
 
@@ -164,7 +164,7 @@ httpServer.on('request', async (req: IncomingMessage, res: ServerResponse) => {
       const body = await parseJsonBody(req);
       const result = await UserService.resetPassword(String(body.token ?? ''), String(body.password ?? ''));
       sendJson(res, result.success ? 200 : 400, result);
-    } catch { sendJson(res, 400, { success: false, error: 'Invalid request' }); }
+    } catch (err) { console.error('[API] Error:', err); sendJson(res, 400, { success: false, error: 'Invalid request' }); }
     return;
   }
 
