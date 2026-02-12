@@ -133,13 +133,6 @@ export class MiningScene {
     this.hud = new HUD(this.app);
     this.playerInfoBox = new PlayerInfoBox(this.app.stage, this.app.screen.width, this.playerState.id);
 
-    // DEBUG: Test if text is visible at y=100 on the right side (where opponent entry should appear)
-    const debugText = new Text({ text: '*** OPPONENT AREA ***', style: new TextStyle({ fontSize: 16, fontWeight: 'bold', fill: '#FF0000' }) });
-    debugText.x = this.app.screen.width - 250;
-    debugText.y = 100;
-    this.app.stage.addChild(debugText);
-    console.log(`[DEBUG] Added red test text at x=${debugText.x}, y=100, stage children=${this.app.stage.children.length}`);
-
     this.inventoryPanel = new InventoryPanel(this.app);
     this.checkpointReplacePanel = new CheckpointReplacePanel(this.app, (oldDepth, newDepth) => {
       // Remove old checkpoint and add new one
@@ -381,7 +374,6 @@ export class MiningScene {
     });
 
     this.registerHandler('player_info_update', (msg) => {
-      console.log(`[PlayerInfo] Received update for ${msg.displayName} (${msg.playerId.slice(0, 6)}): pos=(${msg.x},${msg.y}) gold=${msg.gold}`);
       this.playerInfoBox.updatePlayer(msg);
     });
 

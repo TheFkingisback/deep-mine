@@ -26,28 +26,22 @@ const ENTRY_HEIGHT = 80;
 const PADDING = 8;
 
 /**
- * Semi-transparent panel at top-right showing all players in the match.
- * Uses flat Text elements directly on container (no sub-containers)
- * to avoid PixiJS v8 nested container rendering issues.
+ * Panel at top-right showing all players in the match.
+ * Renders elements directly on parentContainer (no wrapper Container)
+ * to work around PixiJS v8 container rendering issues.
  */
 export class PlayerInfoBox {
-  private container: Container;
-  private background: Graphics;
-  private textElements: Text[] = [];
+  private parentContainer: Container;
+  private elements: (Graphics | Text)[] = [];
   private players: Map<string, PlayerInfo> = new Map();
   private selfPlayerId: string;
+  private panelX: number;
+  private readonly panelY = 10;
 
   constructor(parentContainer: Container, screenWidth: number, selfPlayerId = '') {
     this.selfPlayerId = selfPlayerId;
-    this.container = new Container();
-    this.container.x = screenWidth - PANEL_WIDTH - 10;
-    this.container.y = 10;
-
-    this.background = new Graphics();
-    this.container.addChild(this.background);
-
-    parentContainer.addChild(this.container);
-    this.redrawBackground();
+    this.parentContainer = parentContainer;
+    this.panelX = screenWidth - PANEL_WIDTH - 10;
   }
 
   setSelfPlayerId(id: string): void {
@@ -124,16 +118,30 @@ export class PlayerInfoBox {
   }
 
   private refresh(): void {
-    // Remove old text elements
-    for (const t of this.textElements) {
-      this.container.removeChild(t);
-      t.destroy();
+    // Remove all old elements from parent
+    for (const el of this.elements) {
+      if (el.parent) el.parent.removeChild(el);
+      el.destroy();
     }
-    this.textElements = [];
+    this.elements = [];
 
     const sorted = this.getSortedPlayers();
+    if (sorted.length === 0) return;
 
-    let y = PADDING;
+    // Background — added directly to parentContainer
+    const height = Math.max(40, sorted.length * ENTRY_HEIGHT + PADDING * 2);
+    const bg = new Graphics();
+    bg.roundRect(0, 0, PANEL_WIDTH, height, 6);
+    bg.fill({ color: 0x000000, alpha: 0.6 });
+    bg.roundRect(0, 0, PANEL_WIDTH, height, 6);
+    bg.stroke({ color: 0xf0a500, width: 1, alpha: 0.4 });
+    bg.x = this.panelX;
+    bg.y = this.panelY;
+    this.parentContainer.addChild(bg);
+    this.elements.push(bg);
+
+    // Player entries
+    let y = this.panelY + PADDING;
     for (const player of sorted) {
       const isSelf = player.playerId === this.selfPlayerId;
 
@@ -148,12 +156,12 @@ export class PlayerInfoBox {
           fill: isSelf ? '#55FF55' : '#F0A500',
         }),
       });
-      nameText.x = PADDING;
+      nameText.x = this.panelX + PADDING;
       nameText.y = y;
-      this.container.addChild(nameText);
-      this.textElements.push(nameText);
+      this.parentContainer.addChild(nameText);
+      this.elements.push(nameText);
 
-      // Info (position, gold, lives, items, equipment) - single Text
+      // Info (position, gold, lives, items, equipment)
       const infoStr = this.formatPlayerText(player);
       const infoText = new Text({
         text: infoStr,
@@ -164,32 +172,20 @@ export class PlayerInfoBox {
           lineHeight: 15,
         }),
       });
-      infoText.x = PADDING;
+      infoText.x = this.panelX + PADDING;
       infoText.y = y + 18;
-      this.container.addChild(infoText);
-      this.textElements.push(infoText);
+      this.parentContainer.addChild(infoText);
+      this.elements.push(infoText);
 
       y += ENTRY_HEIGHT;
     }
-
-    this.redrawBackground();
-  }
-
-  private redrawBackground(): void {
-    this.background.clear();
-    const height = Math.max(40, this.players.size * ENTRY_HEIGHT + PADDING * 2);
-    this.background.roundRect(0, 0, PANEL_WIDTH, height, 6);
-    this.background.fill({ color: 0x000000, alpha: 0.6 });
-    this.background.roundRect(0, 0, PANEL_WIDTH, height, 6);
-    this.background.stroke({ color: 0xf0a500, width: 1, alpha: 0.4 });
   }
 
   destroy(): void {
-    for (const t of this.textElements) {
-      t.destroy();
+    for (const el of this.elements) {
+      if (el.parent) el.parent.removeChild(el);
+      el.destroy();
     }
-    this.textElements = [];
-    this.container.parent?.removeChild(this.container);
-    this.container.destroy({ children: true });
+    this.elements = [];
   }
 }
