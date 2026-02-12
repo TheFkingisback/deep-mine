@@ -43,6 +43,16 @@ export class Game {
   async init(): Promise<void> {
     console.log('🚀 Initializing Deep Mine...');
 
+    // One-time migration: clear stale localStorage from pre-auth versions
+    const migrationKey = 'deepmine_v2_migrated';
+    if (!localStorage.getItem(migrationKey)) {
+      localStorage.removeItem('deepmine_save');
+      localStorage.removeItem('deep_mine_auth');
+      localStorage.removeItem('deep_mine_session');
+      localStorage.setItem(migrationKey, '1');
+      console.log('🔄 Cleared stale localStorage data');
+    }
+
     // Initialize audio system
     await audioManager.loadAll();
 
