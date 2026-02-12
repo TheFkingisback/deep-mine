@@ -34,6 +34,9 @@ npm-debug.log*
 !server/scripts/*.js
 !packages/shared/scripts/*.js
 
+# Keep Vite env types
+!client/src/vite-env.d.ts
+
 # Windows artifacts
 nul
 

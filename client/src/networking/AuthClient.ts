@@ -1,4 +1,5 @@
-const API_BASE = `${window.location.protocol}//${window.location.hostname}:9001/api`;
+const apiHost = import.meta.env.VITE_WS_HOST || window.location.hostname || 'localhost';
+const API_BASE = `${window.location.protocol}//${apiHost}:9001/api`;
 
 interface AuthResponse {
   success: boolean;

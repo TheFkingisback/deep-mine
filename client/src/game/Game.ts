@@ -85,7 +85,7 @@ export class Game {
 
   private async connectToServer(): Promise<void> {
     try {
-      const wsHost = window.location.hostname || 'localhost';
+      const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname || 'localhost';
       const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
       this.connection = new Connection(`${wsProtocol}://${wsHost}:9001`);
       await this.connection.connect();
