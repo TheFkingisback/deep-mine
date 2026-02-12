@@ -259,7 +259,7 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
         sendTo(player.ws, { type: 'error', code: 'INVALID_INPUT', message: 'Invalid match ID' });
         break;
       }
-      const result = matchManager.joinMatch(message.matchId, player.id, player.displayName, player.ws);
+      const result = matchManager.joinMatch(message.matchId.toUpperCase(), player.id, player.displayName, player.ws);
       if (!result) { sendTo(player.ws, { type: 'error', code: 'MATCH_NOT_FOUND', message: 'Match not found or full' }); break; }
       const { match, spawnX } = result;
       const others = [...match.players.values()].filter(p => p.id !== player.id)
@@ -328,7 +328,7 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
         sendTo(player.ws, { type: 'error', code: 'INVALID_INPUT', message: 'Invalid room code' });
         break;
       }
-      const result = matchManager.joinMatch(message.roomCode, player.id, player.displayName, player.ws);
+      const result = matchManager.joinMatch(message.roomCode.toUpperCase(), player.id, player.displayName, player.ws);
       if (!result) { sendTo(player.ws, { type: 'error', code: 'MATCH_NOT_FOUND', message: 'Match not found or full' }); break; }
       const { match, spawnX } = result;
       const others = [...match.players.values()].filter(p => p.id !== player.id)

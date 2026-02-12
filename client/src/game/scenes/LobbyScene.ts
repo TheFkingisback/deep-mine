@@ -57,6 +57,8 @@ export class LobbyScene {
 
   private onMatchFound: ((data: MatchJoinedMessage) => void) | null = null;
   private keyHandler: ((e: KeyboardEvent) => void) | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private registeredHandlers: { type: string; handler: (msg: any) => void }[] = [];
 
   // Form fields
   private fields: { name: string; value: string; label: string; isPassword?: boolean; placeholder?: string }[] = [];
@@ -85,18 +87,24 @@ export class LobbyScene {
       this.showLoginScreen();
     }
 
-    this.messageHandler.on('match_joined', (msg) => {
+    const onMatchJoined = (msg: MatchJoinedMessage) => {
       this.setStatus('Match found!', COLORS.success);
       if (this.onMatchFound) this.onMatchFound(msg);
-    });
+    };
+    this.messageHandler.on('match_joined', onMatchJoined);
+    this.registeredHandlers.push({ type: 'match_joined', handler: onMatchJoined });
 
-    this.messageHandler.on('match_list', (msg) => {
+    const onMatchList = (msg: import('@shared/messages').MatchListMessage) => {
       this.showMatchList(msg);
-    });
+    };
+    this.messageHandler.on('match_list', onMatchList);
+    this.registeredHandlers.push({ type: 'match_list', handler: onMatchList });
 
-    this.messageHandler.on('error', (msg) => {
+    const onError = (msg: import('@shared/messages').ErrorMessage) => {
       this.setStatus(msg.message || 'An error occurred', COLORS.error);
-    });
+    };
+    this.messageHandler.on('error', onError);
+    this.registeredHandlers.push({ type: 'error', handler: onError });
   }
 
   setMatchFoundCallback(cb: (data: MatchJoinedMessage) => void): void {
@@ -938,6 +946,11 @@ export class LobbyScene {
 
   destroy(): void {
     this.removeKeyHandler();
+    // Clean up message handlers to prevent zombie callbacks
+    for (const { type, handler } of this.registeredHandlers) {
+      this.messageHandler.off(type as import('@shared/messages').ServerMessage['type'], handler);
+    }
+    this.registeredHandlers = [];
     this.clearUI();
     this.app.stage.removeChild(this.container);
     this.container.destroy({ children: true });

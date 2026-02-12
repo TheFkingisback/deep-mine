@@ -93,6 +93,8 @@ export class MiningScene {
   private matchId: string;
   private initialPlayers: { playerId: string; displayName: string; x: number; y: number }[];
   private playerInfoBox!: PlayerInfoBox;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private registeredHandlers: { type: import('@shared/messages').ServerMessage['type']; handler: (msg: any) => void }[] = [];
 
   constructor(
     app: Application,
@@ -326,10 +328,19 @@ export class MiningScene {
   /**
    * Set up handlers for multiplayer messages from the server.
    */
+  private registerHandler<T extends import('@shared/messages').ServerMessage['type']>(
+    type: T,
+    callback: (msg: Extract<import('@shared/messages').ServerMessage, { type: T }>) => void
+  ): void {
+    if (!this.messageHandler) return;
+    this.messageHandler.on(type, callback);
+    this.registeredHandlers.push({ type, handler: callback });
+  }
+
   private setupMultiplayerHandlers(): void {
     if (!this.messageHandler) return;
 
-    this.messageHandler.on('other_player_joined', (msg) => {
+    this.registerHandler('other_player_joined', (msg) => {
       console.log(`👤 Player joined: ${msg.displayName} at (${msg.x}, ${msg.y})`);
       this.otherPlayerRenderer.addPlayer(msg.playerId, msg.displayName, msg.x, msg.y);
       this.hud.showFloatingText(
@@ -340,16 +351,17 @@ export class MiningScene {
       );
     });
 
-    this.messageHandler.on('other_player_update', (msg) => {
+    this.registerHandler('other_player_update', (msg) => {
       if (!this.otherPlayerRenderer.hasPlayer(msg.playerId)) {
         this.otherPlayerRenderer.addPlayer(msg.playerId, msg.displayName, msg.x, msg.y);
       }
       this.otherPlayerRenderer.updatePlayer(msg.playerId, msg.x, msg.y, msg.action, msg.equipment);
     });
 
-    this.messageHandler.on('other_player_left', (msg) => {
+    this.registerHandler('other_player_left', (msg) => {
       const hadPlayer = this.otherPlayerRenderer.hasPlayer(msg.playerId);
       this.otherPlayerRenderer.removePlayer(msg.playerId);
+      this.playerInfoBox.removePlayer(msg.playerId);
       if (hadPlayer) {
         this.hud.showFloatingText(
           'A player left',
@@ -360,11 +372,12 @@ export class MiningScene {
       }
     });
 
-    this.messageHandler.on('player_info_update', (msg) => {
+    this.registerHandler('player_info_update', (msg) => {
+      console.log(`[PlayerInfo] Received update for ${msg.displayName} (${msg.playerId.slice(0, 6)}): pos=(${msg.x},${msg.y}) gold=${msg.gold}`);
       this.playerInfoBox.updatePlayer(msg);
     });
 
-    this.messageHandler.on('block_destroyed', (msg) => {
+    this.registerHandler('block_destroyed', (msg) => {
       // Only handle blocks destroyed by OTHER players
       if (msg.actor === this.playerState.id) return;
 
@@ -404,7 +417,7 @@ export class MiningScene {
       this.renderWorld();
     });
 
-    this.messageHandler.on('world_state_sync', (msg) => {
+    this.registerHandler('world_state_sync', (msg) => {
       for (const { x, y } of msg.destroyedBlocks) {
         const key = `${x},${y}`;
         this.destroyedBlockKeys.add(key);
@@ -1593,12 +1606,19 @@ export class MiningScene {
 
   /**
    * Sync self-player data to the PlayerInfoBox (for local/offline display).
+   * Only updates when data actually changes to avoid 60fps rebuild.
    */
+  private lastSelfInfoHash = '';
   private syncSelfPlayerInfo(): void {
     const items: { itemType: string; quantity: number }[] = [];
     for (const slot of this.playerState.inventory) {
       if (slot) items.push({ itemType: slot.itemType, quantity: slot.quantity });
     }
+    // Quick hash to skip redundant updates
+    const hash = `${this.playerState.position.x},${this.playerState.position.y},${this.playerState.gold},${this.playerState.lives},${items.length}`;
+    if (hash === this.lastSelfInfoHash) return;
+    this.lastSelfInfoHash = hash;
+
     this.playerInfoBox.updatePlayer({
       playerId: this.playerState.id,
       displayName: 'You',
@@ -1632,6 +1652,13 @@ export class MiningScene {
   destroy(): void {
     this.app.stage.off('pointerdown', this.clickHandler);
     window.removeEventListener('keydown', this.keyHandler);
+    // Clean up message handlers to prevent zombie callbacks
+    if (this.messageHandler) {
+      for (const { type, handler } of this.registeredHandlers) {
+        this.messageHandler.off(type, handler);
+      }
+      this.registeredHandlers = [];
+    }
     this.blockRenderer.clear();
     this.particleSystem.destroy();
     this.playerRenderer.destroy();
