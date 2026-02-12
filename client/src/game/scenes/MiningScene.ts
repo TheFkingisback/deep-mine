@@ -300,7 +300,9 @@ export class MiningScene {
     this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
     this.hud.updateItems(this.playerState.inventory);
     this.hud.updateEquipment(this.playerState.equipment);
+    if (this.matchId) this.hud.setMatchCode(this.matchId);
     this.updateHUDCheckpoints();
+    this.syncSelfPlayerInfo();
 
     // Set up multiplayer message handlers
     this.setupMultiplayerHandlers();
@@ -1569,6 +1571,7 @@ export class MiningScene {
     // Update HUD
     this.hud.update(deltaMs);
     this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
+    this.syncSelfPlayerInfo();
 
     // Update inventory panel
     this.inventoryPanel.update(deltaMs);
@@ -1586,6 +1589,26 @@ export class MiningScene {
 
     // Render world
     this.renderWorld();
+  }
+
+  /**
+   * Sync self-player data to the PlayerInfoBox (for local/offline display).
+   */
+  private syncSelfPlayerInfo(): void {
+    const items: { itemType: string; quantity: number }[] = [];
+    for (const slot of this.playerState.inventory) {
+      if (slot) items.push({ itemType: slot.itemType, quantity: slot.quantity });
+    }
+    this.playerInfoBox.updatePlayer({
+      playerId: this.playerState.id,
+      displayName: 'You',
+      x: this.playerState.position.x,
+      y: this.playerState.position.y,
+      gold: this.playerState.gold,
+      lives: this.playerState.lives,
+      items,
+      equipment: this.playerState.equipment,
+    });
   }
 
   /**

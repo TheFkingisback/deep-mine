@@ -48,6 +48,9 @@ export class HUD {
   // Equipment display
   private equipmentText: Text;
 
+  // Match code display
+  private matchCodeText: Text;
+
   // Gold rolling animation
   private displayedGold = 0;
   private targetGold = 0;
@@ -75,6 +78,7 @@ export class HUD {
     this.depthText = this.createDepthDisplay();
     this.layerText = this.createLayerDisplay();
     this.equipmentText = this.createEquipmentDisplay();
+    this.matchCodeText = this.createMatchCodeDisplay();
 
     // Create items bar
     this.itemsBarContainer = new Container();
@@ -102,6 +106,7 @@ export class HUD {
     this.container.addChild(this.layerText);
     this.container.addChild(this.itemsBarContainer);
     this.container.addChild(this.equipmentText);
+    this.container.addChild(this.matchCodeText);
     this.container.addChild(this.surfaceButton);
     this.container.addChild(this.checkpointButton);
     this.container.addChild(this.logoutButton);
@@ -165,6 +170,18 @@ export class HUD {
       dropShadow: { color: '#000000', blur: 2, angle: Math.PI / 4, distance: 1 }
     });
     return new Text({ text: '', style });
+  }
+
+  private createMatchCodeDisplay(): Text {
+    const style = new TextStyle({
+      fontFamily: "'SF Mono', 'Fira Code', monospace",
+      fontSize: 12,
+      fill: '#F0A500',
+      dropShadow: { color: '#000000', blur: 2, angle: Math.PI / 4, distance: 1 }
+    });
+    const text = new Text({ text: '', style });
+    text.visible = false;
+    return text;
   }
 
   private createSurfaceButton(): Container {
@@ -397,6 +414,15 @@ export class HUD {
     this.equipmentText.text = parts.join('  ');
   }
 
+  setMatchCode(code: string): void {
+    if (code) {
+      this.matchCodeText.text = `Code: ${code}`;
+      this.matchCodeText.visible = true;
+    } else {
+      this.matchCodeText.visible = false;
+    }
+  }
+
   updateInventory(_used: number, _max: number): void {
     // No-op: replaced by items bar
   }
@@ -480,6 +506,10 @@ export class HUD {
     // Layer name below depth
     this.layerText.x = width - this.layerText.width - 12;
     this.layerText.y = 26;
+
+    // Match code below layer name
+    this.matchCodeText.x = width - this.matchCodeText.width - 12;
+    this.matchCodeText.y = 46;
 
     // Items bar (row 2)
     this.itemsBarContainer.x = 12;

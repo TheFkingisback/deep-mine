@@ -93,6 +93,10 @@ export class LobbyScene {
     this.messageHandler.on('match_list', (msg) => {
       this.showMatchList(msg);
     });
+
+    this.messageHandler.on('error', (msg) => {
+      this.setStatus(msg.message || 'An error occurred', COLORS.error);
+    });
   }
 
   setMatchFoundCallback(cb: (data: MatchJoinedMessage) => void): void {
