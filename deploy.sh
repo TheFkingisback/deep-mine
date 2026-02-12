@@ -39,6 +39,7 @@ ok ".env looks good"
 step "Building shared package..."
 cd "$PROJ_DIR/packages/shared"
 npm install --silent 2>/dev/null
+rm -rf dist/
 npm run build || fail "Shared build failed"
 ok "Shared package built"
 
@@ -48,6 +49,7 @@ cd "$PROJ_DIR/server"
 npm install --silent 2>/dev/null
 npx prisma generate --schema=prisma/schema.prisma || fail "Prisma generate failed"
 npx prisma db push --schema=prisma/schema.prisma || fail "Prisma db push failed"
+rm -rf dist/
 npm run build || fail "Server build failed"
 ok "Server built"
 
@@ -62,6 +64,7 @@ ok "All imports resolved"
 step "Building client..."
 cd "$PROJ_DIR/client"
 npm install --silent 2>/dev/null
+rm -rf dist/
 npm run build || fail "Client build failed"
 ok "Client built"
 

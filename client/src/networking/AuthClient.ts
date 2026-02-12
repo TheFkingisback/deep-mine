@@ -1,5 +1,7 @@
-const apiHost = import.meta.env.VITE_WS_HOST || window.location.hostname || 'localhost';
-const API_BASE = `${window.location.protocol}//${apiHost}:9001/api`;
+const isDefaultPort = !window.location.port || window.location.port === '80' || window.location.port === '443';
+const API_BASE = isDefaultPort
+  ? `${window.location.protocol}//${window.location.host}/api`
+  : `${window.location.protocol}//${import.meta.env.VITE_WS_HOST || window.location.hostname || 'localhost'}:9001/api`;
 
 interface AuthResponse {
   success: boolean;

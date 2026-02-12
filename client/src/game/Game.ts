@@ -85,9 +85,18 @@ export class Game {
 
   private async connectToServer(): Promise<void> {
     try {
-      const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname || 'localhost';
       const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      this.connection = new Connection(`${wsProtocol}://${wsHost}:9001`);
+      const isDefaultPort = !window.location.port || window.location.port === '80' || window.location.port === '443';
+      let wsUrl: string;
+      if (isDefaultPort) {
+        // Production — nginx proxies /ws to server
+        wsUrl = `${wsProtocol}://${window.location.host}/ws`;
+      } else {
+        // Development — connect directly to server port
+        const wsHost = import.meta.env.VITE_WS_HOST || window.location.hostname || 'localhost';
+        wsUrl = `${wsProtocol}://${wsHost}:9001`;
+      }
+      this.connection = new Connection(wsUrl);
       await this.connection.connect();
       this.messageHandler = new MessageHandler(this.connection);
       console.log('🌐 Connected to server');
