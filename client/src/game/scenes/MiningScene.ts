@@ -299,6 +299,7 @@ export class MiningScene {
     this.hud.updateLives(this.playerState.lives);
     this.hud.updatePosition(this.playerState.position.x, this.playerState.position.y);
     this.hud.updateItems(this.playerState.inventory);
+    this.hud.updateEquipment(this.playerState.equipment);
     this.updateHUDCheckpoints();
 
     // Set up multiplayer message handlers

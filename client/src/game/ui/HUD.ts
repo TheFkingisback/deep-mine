@@ -1,7 +1,15 @@
 import { Application, Container, Graphics, Text, TextStyle } from 'pixi.js';
-import { InventorySlot } from '@shared/types';
+import { InventorySlot, EquipmentSlot } from '@shared/types';
 import { ITEMS } from '@shared/items';
 import { getLayerAtDepth } from '@shared/layers';
+
+const EQUIP_EMOJIS: Record<string, string> = {
+  [EquipmentSlot.SHOVEL]: '\u26CF\uFE0F',
+  [EquipmentSlot.HELMET]: '\u26D1\uFE0F',
+  [EquipmentSlot.VEST]: '\uD83E\uDDBA',
+  [EquipmentSlot.TORCH]: '\uD83D\uDD26',
+  [EquipmentSlot.ROPE]: '\uD83E\uDE62',
+};
 
 interface FloatingText {
   text: Text;
@@ -37,6 +45,9 @@ export class HUD {
   // Lives display
   private livesText: Text;
 
+  // Equipment display
+  private equipmentText: Text;
+
   // Gold rolling animation
   private displayedGold = 0;
   private targetGold = 0;
@@ -63,6 +74,7 @@ export class HUD {
     this.livesText = this.createLivesDisplay();
     this.depthText = this.createDepthDisplay();
     this.layerText = this.createLayerDisplay();
+    this.equipmentText = this.createEquipmentDisplay();
 
     // Create items bar
     this.itemsBarContainer = new Container();
@@ -89,6 +101,7 @@ export class HUD {
     this.container.addChild(this.depthText);
     this.container.addChild(this.layerText);
     this.container.addChild(this.itemsBarContainer);
+    this.container.addChild(this.equipmentText);
     this.container.addChild(this.surfaceButton);
     this.container.addChild(this.checkpointButton);
     this.container.addChild(this.logoutButton);
@@ -139,6 +152,16 @@ export class HUD {
       fontFamily: 'Arial, sans-serif',
       fontSize: 12,
       fill: '#AAAAAA',
+      dropShadow: { color: '#000000', blur: 2, angle: Math.PI / 4, distance: 1 }
+    });
+    return new Text({ text: '', style });
+  }
+
+  private createEquipmentDisplay(): Text {
+    const style = new TextStyle({
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 11,
+      fill: '#AADDFF',
       dropShadow: { color: '#000000', blur: 2, angle: Math.PI / 4, distance: 1 }
     });
     return new Text({ text: '', style });
@@ -363,6 +386,17 @@ export class HUD {
     }
   }
 
+  updateEquipment(equipment: Record<string, number>): void {
+    const parts: string[] = [];
+    const order = [EquipmentSlot.SHOVEL, EquipmentSlot.HELMET, EquipmentSlot.VEST, EquipmentSlot.TORCH, EquipmentSlot.ROPE];
+    for (const slot of order) {
+      const tier = equipment[slot] ?? 1;
+      const emoji = EQUIP_EMOJIS[slot] ?? '?';
+      parts.push(`${emoji}T${tier}`);
+    }
+    this.equipmentText.text = parts.join('  ');
+  }
+
   updateInventory(_used: number, _max: number): void {
     // No-op: replaced by items bar
   }
@@ -428,28 +462,32 @@ export class HUD {
   }
 
   resize(width: number, height: number): void {
-    // Top bar background
+    // Top bar background (expanded for 3 rows: gold/lives, items, equipment)
     this.topBarBg.clear();
-    this.topBarBg.rect(0, 0, width, 56);
+    this.topBarBg.rect(0, 0, width, 74);
     this.topBarBg.fill({ color: 0x000000, alpha: 0.4 });
 
     this.goldText.x = 12;
-    this.goldText.y = 8;
+    this.goldText.y = 6;
 
     // Lives next to gold
     this.livesText.x = 120;
-    this.livesText.y = 9;
+    this.livesText.y = 7;
 
     this.depthText.x = width - this.depthText.width - 12;
-    this.depthText.y = 8;
+    this.depthText.y = 6;
 
     // Layer name below depth
     this.layerText.x = width - this.layerText.width - 12;
-    this.layerText.y = 28;
+    this.layerText.y = 26;
 
-    // Items bar below gold
+    // Items bar (row 2)
     this.itemsBarContainer.x = 12;
-    this.itemsBarContainer.y = 34;
+    this.itemsBarContainer.y = 32;
+
+    // Equipment bar (row 3)
+    this.equipmentText.x = 12;
+    this.equipmentText.y = 54;
 
     // Bottom-left: Surface button
     this.surfaceButton.x = 10;

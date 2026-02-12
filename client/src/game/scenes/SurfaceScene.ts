@@ -131,6 +131,7 @@ export class SurfaceScene {
       if (result.newTier !== undefined && result.slot !== undefined) {
         this.playerState.equipment[result.slot as EquipmentSlot] = result.newTier;
         this.playerRenderer.setEquipment(this.playerState.equipment);
+        this.hud.updateEquipment(this.playerState.equipment);
       }
       if (result.newSlots !== undefined && result.newLevel !== undefined) {
         this.playerState.maxInventorySlots = result.newSlots;
@@ -158,6 +159,7 @@ export class SurfaceScene {
     this.hud.updateLives(this.playerState.lives);
     this.hud.updatePosition(this.playerState.position.x, 0);
     this.hud.updateItems(this.playerState.inventory);
+    this.hud.updateEquipment(this.playerState.equipment);
     this.hud.setButtonVisibility('surface', false);
 
     this.buildMenuButtons();
