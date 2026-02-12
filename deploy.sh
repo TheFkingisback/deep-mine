@@ -22,6 +22,7 @@ echo "════════════════════════�
 
 # ── 1. Git pull ──────────────────────────
 step "Pulling latest code..."
+git stash -q 2>/dev/null || true
 git pull origin master || fail "git pull failed"
 ok "Code updated"
 
