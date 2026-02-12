@@ -23,6 +23,11 @@ export interface CollectItemMessage {
   itemId: string;
 }
 
+export interface InventorySyncMessage {
+  type: 'inventory_sync';
+  items: { itemType: string; quantity: number }[];
+}
+
 export interface GoSurfaceMessage {
   type: 'go_surface';
 }
@@ -108,6 +113,7 @@ export type ClientMessage =
   | DigMessage
   | MoveMessage
   | CollectItemMessage
+  | InventorySyncMessage
   | GoSurfaceMessage
   | SellMessage
   | BuyEquipmentMessage

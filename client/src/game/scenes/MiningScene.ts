@@ -450,6 +450,15 @@ export class MiningScene {
     });
   }
 
+  private sendInventorySync(): void {
+    if (!this.connection) return;
+    const items: { itemType: string; quantity: number }[] = [];
+    for (const slot of this.playerState.inventory) {
+      if (slot) items.push({ itemType: slot.itemType, quantity: slot.quantity });
+    }
+    this.connection.send({ type: 'inventory_sync', items });
+  }
+
   /**
    * Handle click/tap input for digging.
    */
@@ -1331,6 +1340,9 @@ export class MiningScene {
 
           // Update HUD items bar
           this.hud.updateItems(this.playerState.inventory);
+
+          // Sync inventory to server so opponents see our items
+          this.sendInventorySync();
 
           // Show collection effect
           this.showFloatingText(

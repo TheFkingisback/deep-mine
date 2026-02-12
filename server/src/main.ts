@@ -567,6 +567,21 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
       break;
     }
 
+    case 'inventory_sync': {
+      const syncMatch = matchManager.getPlayerMatch(player.id);
+      if (!syncMatch) break;
+      const syncMp = syncMatch.players.get(player.id);
+      if (!syncMp) break;
+      // Update server-side items from client inventory
+      if (Array.isArray(message.items)) {
+        syncMp.items = message.items.map((it: { itemType: string; quantity: number }) => ({
+          itemType: String(it.itemType),
+          quantity: Number(it.quantity) || 0,
+        }));
+      }
+      break;
+    }
+
     case 'buy_inventory_upgrade': {
       // H8: Server-side inventory upgrade
       const upgradeMatch = matchManager.getPlayerMatch(player.id);
