@@ -100,6 +100,7 @@ export class PlayerInfoBox {
     this.playerEntries.clear();
 
     const sorted = this.getSortedPlayers();
+    console.log(`[PlayerInfoBox] refresh: ${this.players.size} players in map, ${sorted.length} sorted, selfId=${this.selfPlayerId.slice(0, 8)}, ids=[${sorted.map(p => p.playerId.slice(0, 8)).join(',')}]`);
 
     let y = PADDING;
     for (const player of sorted) {
@@ -171,10 +172,12 @@ export class PlayerInfoBox {
 
       this.container.addChild(entry);
       this.playerEntries.set(player.playerId, { container: entry });
+      console.log(`[PlayerInfoBox] Created entry for ${player.displayName} (${player.playerId.slice(0, 8)}) at y=${y}, isSelf=${isSelf}`);
 
       y += LINE_HEIGHT;
     }
 
+    console.log(`[PlayerInfoBox] After refresh: ${this.playerEntries.size} entries, container children=${this.container.children.length}`);
     this.redrawBackground();
   }
 
