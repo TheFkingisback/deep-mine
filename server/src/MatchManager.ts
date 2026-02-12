@@ -23,6 +23,7 @@ export interface Match {
   id: string;
   name: string;
   seed: number;
+  secret: boolean;
   worldManager: WorldManager;
   players: Map<string, MatchPlayer>;
   maxPlayers: number;
@@ -35,7 +36,7 @@ export class MatchManager {
   private matches = new Map<string, Match>();
   private playerToMatch = new Map<string, string>();
 
-  createMatch(name: string, maxPlayers = 8): Match {
+  createMatch(name: string, maxPlayers = 8, secret = false): Match {
     // H10: Use crypto.randomBytes instead of Math.random for IDs and seeds
     const id = randomBytes(4).toString('hex').toUpperCase();
     const seed = randomBytes(4).readUInt32BE(0);
@@ -43,6 +44,7 @@ export class MatchManager {
       id,
       name,
       seed,
+      secret,
       worldManager: new WorldManager(seed),
       players: new Map(),
       maxPlayers,
@@ -51,7 +53,7 @@ export class MatchManager {
       destroyedBlocks: new Set(),
     };
     this.matches.set(id, match);
-    console.log(`[Match] Created "${name}" (${id}) seed=${seed}`);
+    console.log(`[Match] Created "${name}" (${id}) seed=${seed} secret=${secret}`);
     return match;
   }
 
@@ -120,6 +122,7 @@ export class MatchManager {
   listMatches(): { matchId: string; matchName: string; playerCount: number; maxPlayers: number }[] {
     const list: { matchId: string; matchName: string; playerCount: number; maxPlayers: number }[] = [];
     for (const [, match] of this.matches) {
+      if (match.secret) continue;
       if (match.players.size < match.maxPlayers) {
         list.push({
           matchId: match.id,
@@ -133,9 +136,10 @@ export class MatchManager {
   }
 
   findQuickPlayMatch(): Match | null {
-    // Find the match with the most players that isn't full
+    // Find the match with the most players that isn't full (skip secret matches)
     let best: Match | null = null;
     for (const [, match] of this.matches) {
+      if (match.secret) continue;
       if (match.players.size < match.maxPlayers) {
         if (!best || match.players.size > best.players.size) {
           best = match;

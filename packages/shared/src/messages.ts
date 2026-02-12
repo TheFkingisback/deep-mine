@@ -83,6 +83,7 @@ export interface AuthMessage {
 export interface CreateMatchMessage {
   type: 'create_match';
   matchName: string;
+  secret?: boolean;
 }
 
 export interface JoinMatchMessage {

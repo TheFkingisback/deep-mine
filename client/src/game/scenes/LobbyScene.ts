@@ -46,6 +46,7 @@ export class LobbyScene {
   private mode: LobbyMode = 'login';
   private roomCodeInput = '';
   private matchNameInput = '';
+  private isSecretMatch = false;
 
   private bgLayer!: Graphics;
   private cardContainer!: Container;
@@ -733,9 +734,10 @@ export class LobbyScene {
     this.clearUI();
     this.removeKeyHandler();
     this.matchNameInput = '';
+    this.isSecretMatch = false;
     this.mode = 'creating';
 
-    const cardH = 300;
+    const cardH = 360;
     this.drawCard(cardH, this.app.screen.height / 2 - cardH / 2);
 
     let y = 30;
@@ -766,12 +768,58 @@ export class LobbyScene {
     nameContainer.addChild(nameDisplay);
     this.cardContainer.addChild(nameContainer);
     this.uiElements.push(nameContainer);
-    y += 68;
+    y += 64;
+
+    // Secret match toggle
+    const toggleContainer = new Container();
+    toggleContainer.y = y;
+    toggleContainer.eventMode = 'static';
+    toggleContainer.cursor = 'pointer';
+
+    const checkboxBg = new Graphics();
+    const drawCheckbox = (checked: boolean) => {
+      checkboxBg.clear();
+      checkboxBg.roundRect(-140, 0, 24, 24, 4);
+      checkboxBg.fill({ color: checked ? 0xf0a500 : COLORS.inputBg });
+      checkboxBg.roundRect(-140, 0, 24, 24, 4);
+      checkboxBg.stroke({ color: 0xf0a500, width: 2 });
+    };
+    drawCheckbox(false);
+    toggleContainer.addChild(checkboxBg);
+
+    const checkmark = new Text({
+      text: '\u2713',
+      style: new TextStyle({ fontFamily: 'Arial', fontSize: 16, fontWeight: 'bold', fill: '#1a1a2e' }),
+    });
+    checkmark.x = -134;
+    checkmark.y = 2;
+    checkmark.visible = false;
+    toggleContainer.addChild(checkmark);
+
+    const toggleLabel = new Text({
+      text: 'Secret (code only)',
+      style: new TextStyle({
+        fontFamily: 'Arial, sans-serif', fontSize: 14, fill: '#CCCCCC',
+      }),
+    });
+    toggleLabel.x = -108;
+    toggleLabel.y = 3;
+    toggleContainer.addChild(toggleLabel);
+
+    toggleContainer.on('pointerup', () => {
+      this.isSecretMatch = !this.isSecretMatch;
+      drawCheckbox(this.isSecretMatch);
+      checkmark.visible = this.isSecretMatch;
+    });
+
+    this.cardContainer.addChild(toggleContainer);
+    this.uiElements.push(toggleContainer);
+    y += 40;
 
     const submitMatch = () => {
       const name = this.matchNameInput.trim() || `Match_${Date.now().toString(36).slice(-4).toUpperCase()}`;
       this.setStatus('Creating match...', COLORS.warning);
-      this.connection.send({ type: 'create_match', matchName: name });
+      this.connection.send({ type: 'create_match', matchName: name, secret: this.isSecretMatch });
     };
 
     y = this.createPrimaryButton('Create', y, submitMatch);

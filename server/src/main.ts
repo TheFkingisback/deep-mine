@@ -241,7 +241,8 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
 
     case 'create_match': {
       const matchName = sanitizeMatchName(message.matchName) ?? 'Unnamed Match';
-      const match = matchManager.createMatch(matchName);
+      const secret = message.secret === true;
+      const match = matchManager.createMatch(matchName, 8, secret);
       const result = matchManager.joinMatch(match.id, player.id, player.displayName, player.ws);
       if (!result) break;
       sendTo(player.ws, {
