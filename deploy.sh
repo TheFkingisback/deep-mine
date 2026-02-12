@@ -55,7 +55,8 @@ ok "Server built"
 
 # ── 5. Verificar que @shared foi resolvido
 step "Verifying no unresolved @shared imports..."
-if grep -r "@shared" dist/ --include="*.js" 2>/dev/null | head -1; then
+if grep -rq "@shared" dist/ --include="*.js" 2>/dev/null; then
+  grep -r "@shared" dist/ --include="*.js" | head -5
   fail "Found unresolved @shared imports in dist/"
 fi
 ok "All imports resolved"
