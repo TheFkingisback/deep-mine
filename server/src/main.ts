@@ -387,6 +387,7 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
       const blockType = block.type;
       const result = match.worldManager.damageBlock(message.x, message.y, damage);
       if (result.destroyed) {
+        match.destroyedBlocks.add(`${message.x},${message.y}`);
         // H2: Server-side loot drop
         let drop: { itemId: string; itemType: ItemType; position: { x: number; y: number } } | null = null;
         if (blockType !== BlockType.TNT) {
@@ -594,6 +595,16 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
         gold: upgradeMp.gold, equipment: upgradeMp.equipment,
         inventory: upgradeMp.items, inventorySlots: upgradeMp.inventory.length,
         maxDepthReached: 0, isStunned: false, stunDurationMs: 0,
+      });
+      break;
+    }
+
+    case 'request_world_state': {
+      const wsMatch = matchManager.getPlayerMatch(player.id);
+      if (!wsMatch) break;
+      sendTo(player.ws, {
+        type: 'world_state_sync',
+        destroyedBlocks: matchManager.getDestroyedBlocksForMatch(wsMatch.id),
       });
       break;
     }

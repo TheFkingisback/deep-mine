@@ -27,6 +27,7 @@ export interface Match {
   maxPlayers: number;
   createdAt: number;
   droppedItems: Map<string, DropItem>;
+  destroyedBlocks: Set<string>;
 }
 
 export class MatchManager {
@@ -46,6 +47,7 @@ export class MatchManager {
       maxPlayers,
       createdAt: Date.now(),
       droppedItems: new Map(),
+      destroyedBlocks: new Set(),
     };
     this.matches.set(id, match);
     console.log(`[Match] Created "${name}" (${id}) seed=${seed}`);
@@ -166,6 +168,15 @@ export class MatchManager {
         p.ws.send(data);
       }
     }
+  }
+
+  getDestroyedBlocksForMatch(matchId: string): { x: number; y: number }[] {
+    const match = this.matches.get(matchId);
+    if (!match) return [];
+    return [...match.destroyedBlocks].map(key => {
+      const [x, y] = key.split(',').map(Number);
+      return { x, y };
+    });
   }
 
   syncPlayerItems(mp: MatchPlayer): void {

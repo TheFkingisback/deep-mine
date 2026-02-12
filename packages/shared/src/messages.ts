@@ -99,6 +99,10 @@ export interface SetNameMessage {
   name: string;
 }
 
+export interface RequestWorldStateMessage {
+  type: 'request_world_state';
+}
+
 export type ClientMessage =
   | DigMessage
   | MoveMessage
@@ -118,7 +122,8 @@ export type ClientMessage =
   | CreateMatchMessage
   | JoinMatchMessage
   | ListMatchesMessage
-  | SetNameMessage;
+  | SetNameMessage
+  | RequestWorldStateMessage;
 
 // ─── Server → Client Messages ───────────────────────────────────────
 
@@ -327,6 +332,11 @@ export interface AuthResultMessage {
   error?: string;
 }
 
+export interface WorldStateSyncMessage {
+  type: 'world_state_sync';
+  destroyedBlocks: { x: number; y: number }[];
+}
+
 export interface ErrorMessage {
   type: 'error';
   code: string;
@@ -355,4 +365,5 @@ export type ServerMessage =
   | MatchJoinedMessage
   | PlayerInfoUpdateMessage
   | AuthResultMessage
+  | WorldStateSyncMessage
   | ErrorMessage;

@@ -53,6 +53,7 @@ export class MiningScene {
   private worldSeed: number;
   private activeDrops: Map<string, DropItem> = new Map();
   private worldBlocks: Map<string, Block> = new Map();
+  private destroyedBlockKeys: Set<string> = new Set();
 
   // Input
   private clickHandler: (e: FederatedPointerEvent) => void;
@@ -303,6 +304,11 @@ export class MiningScene {
     // Set up multiplayer message handlers
     this.setupMultiplayerHandlers();
 
+    // Request current world state (destroyed blocks) from server
+    if (this.connection) {
+      this.connection.send({ type: 'request_world_state' });
+    }
+
     // Add initial players from match data
     for (const p of this.initialPlayers) {
       this.otherPlayerRenderer.addPlayer(p.playerId, p.displayName, p.x, p.y);
@@ -361,12 +367,13 @@ export class MiningScene {
 
       const blockKey = `${msg.x},${msg.y}`;
       this.worldBlocks.delete(blockKey);
+      this.destroyedBlockKeys.add(blockKey);
 
       // Update chunk data
       const chunkY = Math.floor(msg.y / 32);
       const chunk = this.loadedChunks.get(chunkY);
       if (chunk) {
-        const localX = msg.x % 20;
+        const localX = msg.x;
         const localY = msg.y % 32;
         if (chunk.blocks[localX] && chunk.blocks[localX][localY]) {
           chunk.blocks[localX][localY].type = BlockType.EMPTY;
@@ -391,6 +398,23 @@ export class MiningScene {
       this.applyGravity();
       this.sendMove();
 
+      this.renderWorld();
+    });
+
+    this.messageHandler.on('world_state_sync', (msg) => {
+      for (const { x, y } of msg.destroyedBlocks) {
+        const key = `${x},${y}`;
+        this.destroyedBlockKeys.add(key);
+        this.worldBlocks.delete(key);
+
+        // Update chunk data if loaded
+        const chunkY = Math.floor(y / 32);
+        const chunk = this.loadedChunks.get(chunkY);
+        if (chunk && chunk.blocks[x] && chunk.blocks[x][y % 32]) {
+          chunk.blocks[x][y % 32].type = BlockType.EMPTY;
+          chunk.blocks[x][y % 32].hp = 0;
+        }
+      }
       this.renderWorld();
     });
   }
@@ -693,12 +717,13 @@ export class MiningScene {
     // Remove block from world
     const blockKey = `${x},${y}`;
     this.worldBlocks.delete(blockKey);
+    this.destroyedBlockKeys.add(blockKey);
 
     // Update block in chunks
     const chunkY = Math.floor(y / 32);
     const chunk = this.loadedChunks.get(chunkY);
     if (chunk) {
-      const localX = x % 20;
+      const localX = x;
       const localY = y % 32;
       if (chunk.blocks[localX] && chunk.blocks[localX][localY]) {
         chunk.blocks[localX][localY].type = BlockType.EMPTY;
@@ -1363,6 +1388,11 @@ export class MiningScene {
       for (let y = 0; y < chunk.blocks[x].length; y++) {
         const block = chunk.blocks[x][y];
         const key = `${block.x},${block.y}`;
+        // Apply previously destroyed blocks
+        if (this.destroyedBlockKeys.has(key)) {
+          block.type = BlockType.EMPTY;
+          block.hp = 0;
+        }
         this.worldBlocks.set(key, block);
       }
     }
