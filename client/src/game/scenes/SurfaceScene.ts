@@ -51,6 +51,12 @@ export class SurfaceScene {
   private onSellClick: (() => void) | null = null;
   private onShopClick: (() => void) | null = null;
   private onLogoutCallback: (() => void) | null = null;
+  private onLeaveMatchCallback: (() => void) | null = null;
+  private onSaveGameCallback: (() => void) | null = null;
+  private isOffline = false;
+
+  // Surface menu buttons
+  private menuButtons: Container | null = null;
 
   // Multiplayer
   private connection: Connection | null = null;
@@ -116,8 +122,7 @@ export class SurfaceScene {
     this.sellPanel = new SellPanel(this.app, (result) => {
       this.playerState.gold = result.newGold;
       this.hud.updateGold(this.playerState.gold);
-      const usedSlots = this.playerState.inventory.filter(slot => slot !== null).length;
-      this.hud.updateInventory(usedSlots, this.playerState.maxInventorySlots);
+      this.hud.updateItems(this.playerState.inventory);
     });
 
     this.shopPanel = new ShopPanel(this.app, (result) => {
@@ -130,8 +135,7 @@ export class SurfaceScene {
       if (result.newSlots !== undefined && result.newLevel !== undefined) {
         this.playerState.maxInventorySlots = result.newSlots;
         this.playerState.inventoryUpgradeLevel = result.newLevel;
-        const usedSlots = this.playerState.inventory.filter(slot => slot !== null).length;
-        this.hud.updateInventory(usedSlots, this.playerState.maxInventorySlots);
+        this.hud.updateItems(this.playerState.inventory);
       }
     });
 
@@ -153,10 +157,10 @@ export class SurfaceScene {
     this.hud.updateGold(this.playerState.gold);
     this.hud.updateLives(this.playerState.lives);
     this.hud.updatePosition(this.playerState.position.x, 0);
-    const usedSlots = this.playerState.inventory.filter(slot => slot !== null).length;
-    this.hud.updateInventory(usedSlots, this.playerState.maxInventorySlots);
+    this.hud.updateItems(this.playerState.inventory);
     this.hud.setButtonVisibility('surface', false);
 
+    this.buildMenuButtons();
     this.setupSurfaceMultiplayer();
 
     if (this.connection) {
@@ -798,6 +802,83 @@ export class SurfaceScene {
     return button;
   }
 
+  // ─── SURFACE MENU ───────────────────────────────────────────────
+
+  private buildMenuButtons(): void {
+    if (this.menuButtons) {
+      this.container.removeChild(this.menuButtons);
+      this.menuButtons.destroy({ children: true });
+    }
+
+    this.menuButtons = new Container();
+    const h = this.app.screen.height;
+    this.menuButtons.x = 16;
+    this.menuButtons.y = h - 60;
+
+    let btnX = 0;
+
+    // Leave Match button (red)
+    const leaveBtn = this.createMenuButton('Leave Match', 0x993333, 0xCC5555);
+    leaveBtn.x = btnX;
+    leaveBtn.on('pointerup', () => { if (this.onLeaveMatchCallback) this.onLeaveMatchCallback(); });
+    this.menuButtons.addChild(leaveBtn);
+    btnX += 160;
+
+    // Save Game button (green, only for offline/solo)
+    if (this.isOffline) {
+      const saveBtn = this.createMenuButton('Save Game', 0x337733, 0x55AA55);
+      saveBtn.x = btnX;
+      saveBtn.on('pointerup', () => {
+        if (this.onSaveGameCallback) this.onSaveGameCallback();
+        // Show "Saved!" feedback
+        const feedbackStyle = new TextStyle({
+          fontFamily: 'Arial, sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#55FF55',
+        });
+        const feedback = new Text({ text: 'Saved!', style: feedbackStyle });
+        feedback.anchor.set(0.5);
+        feedback.x = saveBtn.x + 70;
+        feedback.y = -20;
+        this.menuButtons!.addChild(feedback);
+        setTimeout(() => { feedback.destroy(); }, 1500);
+      });
+      this.menuButtons.addChild(saveBtn);
+    }
+
+    this.container.addChild(this.menuButtons);
+  }
+
+  private createMenuButton(text: string, color: number, highlight: number): Container {
+    const button = new Container();
+    button.eventMode = 'static';
+    button.cursor = 'pointer';
+
+    const bg = new Graphics();
+    bg.roundRect(0, 0, 140, 36, 8);
+    bg.fill(color);
+    bg.roundRect(0, 0, 140, 36, 8);
+    bg.stroke({ width: 2, color: highlight, alpha: 0.5 });
+    bg.roundRect(2, 2, 136, 16, 6);
+    bg.fill({ color: highlight, alpha: 0.15 });
+    button.addChild(bg);
+
+    const style = new TextStyle({
+      fontFamily: 'Arial, sans-serif', fontSize: 14, fontWeight: 'bold', fill: '#FFFFFF',
+      dropShadow: { color: '#000000', blur: 3, distance: 1, angle: Math.PI / 4 },
+    });
+    const label = new Text({ text, style });
+    label.anchor.set(0.5);
+    label.x = 70;
+    label.y = 18;
+    button.addChild(label);
+
+    button.on('pointerover', () => { button.alpha = 0.85; });
+    button.on('pointerout', () => { button.alpha = 1; });
+    button.on('pointerdown', () => { button.scale.set(0.95); });
+    button.on('pointerup', () => { button.scale.set(1.0); });
+
+    return button;
+  }
+
   // ─── PLAYER ──────────────────────────────────────────────────────
 
   private positionPlayer(): void {
@@ -881,6 +962,9 @@ export class SurfaceScene {
   setSellCallback(callback: () => void): void { this.onSellClick = callback; }
   setShopCallback(callback: () => void): void { this.onShopClick = callback; }
   setLogoutCallback(callback: () => void): void { this.onLogoutCallback = callback; }
+  setLeaveMatchCallback(callback: () => void): void { this.onLeaveMatchCallback = callback; }
+  setSaveGameCallback(callback: () => void): void { this.onSaveGameCallback = callback; }
+  setIsOffline(offline: boolean): void { this.isOffline = offline; }
 
   // ─── UPDATE ──────────────────────────────────────────────────────
 

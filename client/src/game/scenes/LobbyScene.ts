@@ -5,7 +5,7 @@ import { SessionManager } from '../../networking/SessionManager';
 import * as AuthClient from '../../networking/AuthClient';
 import type { MatchJoinedMessage, MatchListMessage } from '@shared/messages';
 
-type LobbyMode = 'login' | 'register' | 'forgot' | 'menu' | 'joining' | 'match_list';
+type LobbyMode = 'login' | 'register' | 'forgot' | 'menu' | 'joining' | 'match_list' | 'creating';
 
 const sessionManager = new SessionManager();
 
@@ -45,6 +45,7 @@ export class LobbyScene {
 
   private mode: LobbyMode = 'login';
   private roomCodeInput = '';
+  private matchNameInput = '';
 
   private bgLayer!: Graphics;
   private cardContainer!: Container;
@@ -633,10 +634,7 @@ export class LobbyScene {
         this.setStatus('Finding a game...', COLORS.warning);
         this.connection.send({ type: 'join_quick_play' });
       }],
-      ['Create Match', 0x1d3557, () => {
-        this.setStatus('Creating match...', COLORS.warning);
-        this.connection.send({ type: 'create_match', matchName: `Match_${Date.now().toString(36).slice(-4).toUpperCase()}` });
-      }],
+      ['Create Match', 0x1d3557, () => this.showCreateMatchInput()],
       ['Browse Matches', 0x4a3060, () => {
         this.setStatus('Loading...', COLORS.warning);
         this.connection.send({ type: 'list_matches' });
@@ -725,6 +723,75 @@ export class LobbyScene {
       }
       const padded = this.roomCodeInput.split('').concat(Array(8 - this.roomCodeInput.length).fill('_'));
       codeDisplay.text = padded.join(' ');
+    };
+    window.addEventListener('keydown', this.keyHandler);
+  }
+
+  // ─── Create Match ────────────────────────────────────────────────
+
+  private showCreateMatchInput(): void {
+    this.clearUI();
+    this.removeKeyHandler();
+    this.matchNameInput = '';
+    this.mode = 'creating';
+
+    const cardH = 300;
+    this.drawCard(cardH, this.app.screen.height / 2 - cardH / 2);
+
+    let y = 30;
+    this.addCardTitle('Create Match', y);
+    y += 36;
+    this.addCardSubtitle('Name your match', y);
+    y += 44;
+
+    // Name input display
+    const nameContainer = new Container();
+    nameContainer.y = y;
+    const nameBg = new Graphics();
+    nameBg.roundRect(-140, 0, 280, 52, RADIUS.input);
+    nameBg.fill({ color: COLORS.inputBg });
+    nameBg.roundRect(-140, 0, 280, 52, RADIUS.input);
+    nameBg.stroke({ color: COLORS.inputBorderActive, width: 2 });
+    nameContainer.addChild(nameBg);
+
+    const nameDisplay = new Text({
+      text: 'Type a name...',
+      style: new TextStyle({
+        fontFamily: "'SF Mono', 'Fira Code', monospace",
+        fontSize: 16, fill: '#888888',
+      }),
+    });
+    nameDisplay.anchor.set(0.5, 0.5);
+    nameDisplay.y = 26;
+    nameContainer.addChild(nameDisplay);
+    this.cardContainer.addChild(nameContainer);
+    this.uiElements.push(nameContainer);
+    y += 68;
+
+    const submitMatch = () => {
+      const name = this.matchNameInput.trim() || `Match_${Date.now().toString(36).slice(-4).toUpperCase()}`;
+      this.setStatus('Creating match...', COLORS.warning);
+      this.connection.send({ type: 'create_match', matchName: name });
+    };
+
+    y = this.createPrimaryButton('Create', y, submitMatch);
+
+    this.createTextLink('Back to Menu', y + 4, () => this.showMenu());
+
+    this.keyHandler = (e: KeyboardEvent) => {
+      if (this.mode !== 'creating') return;
+      if (e.key === 'Backspace') {
+        this.matchNameInput = this.matchNameInput.slice(0, -1);
+      } else if (e.key === 'Enter') {
+        submitMatch();
+        return;
+      } else if (e.key.length === 1 && this.matchNameInput.length < 20) {
+        this.matchNameInput += e.key;
+      } else {
+        return;
+      }
+      nameDisplay.text = this.matchNameInput || 'Type a name...';
+      nameDisplay.style.fill = this.matchNameInput ? '#FFFFFF' : '#888888';
     };
     window.addEventListener('keydown', this.keyHandler);
   }

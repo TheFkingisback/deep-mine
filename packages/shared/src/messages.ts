@@ -322,6 +322,7 @@ export interface PlayerInfoUpdateMessage {
   y: number;
   gold: number;
   items: { itemType: string; quantity: number }[];
+  equipment: Record<string, number>;
 }
 
 export interface AuthResultMessage {

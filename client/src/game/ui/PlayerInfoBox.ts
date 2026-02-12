@@ -1,25 +1,36 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
+import { ITEMS } from '@shared/items';
 
 interface PlayerInfo {
   playerId: string;
   displayName: string;
-  depth: number;
+  x: number;
+  y: number;
   gold: number;
-  itemCount: number;
+  items: { itemType: string; quantity: number }[];
+  equipment: Record<string, number>;
 }
 
-const PANEL_WIDTH = 200;
-const LINE_HEIGHT = 50;
+const PANEL_WIDTH = 240;
+const LINE_HEIGHT = 72;
 const PADDING = 10;
+
+const EQUIP_EMOJI: Record<string, string> = {
+  shovel: '\u26CF\uFE0F',
+  helmet: '\uD83E\uDE96',
+  vest: '\uD83E\uDDBA',
+  torch: '\uD83D\uDD26',
+  rope: '\uD83E\uDEA2',
+};
 
 /**
  * Semi-transparent panel at top-right showing all players in the match.
- * Displays name, depth, gold, and item count per player.
+ * Displays name, position, gold, items with emojis, and equipment.
  */
 export class PlayerInfoBox {
   private container: Container;
   private background: Graphics;
-  private playerEntries: Map<string, { container: Container; nameText: Text; infoText: Text }> = new Map();
+  private playerEntries: Map<string, { container: Container }> = new Map();
   private players: Map<string, PlayerInfo> = new Map();
 
   constructor(parentContainer: Container, screenWidth: number) {
@@ -41,14 +52,16 @@ export class PlayerInfoBox {
     y: number;
     gold: number;
     items: { itemType: string; quantity: number }[];
+    equipment?: Record<string, number>;
   }): void {
-    const itemCount = info.items.reduce((sum, i) => sum + i.quantity, 0);
     this.players.set(info.playerId, {
       playerId: info.playerId,
       displayName: info.displayName,
-      depth: info.y,
+      x: info.x,
+      y: info.y,
       gold: info.gold,
-      itemCount,
+      items: info.items,
+      equipment: info.equipment ?? {},
     });
     this.refresh();
   }
@@ -79,24 +92,54 @@ export class PlayerInfoBox {
       fill: '#CCCCEE',
     });
 
+    const itemStyle = new TextStyle({
+      fontFamily: 'Arial, sans-serif',
+      fontSize: 10,
+      fill: '#AADDAA',
+    });
+
     let y = PADDING;
     for (const [id, player] of this.players) {
       const entry = new Container();
       entry.y = y;
       entry.x = PADDING;
 
+      // Player name
       const nameText = new Text({ text: player.displayName, style: nameStyle });
       entry.addChild(nameText);
 
-      const infoText = new Text({
-        text: `Depth: ${player.depth}m  Gold: ${player.gold}  Items: ${player.itemCount}`,
-        style: infoStyle,
-      });
-      infoText.y = 18;
+      // Position and gold
+      const posGold = `Pos: (${player.x}, ${player.y})  G: ${player.gold}`;
+      const infoText = new Text({ text: posGold, style: infoStyle });
+      infoText.y = 17;
       entry.addChild(infoText);
 
+      // Items with emojis
+      const itemParts: string[] = [];
+      for (const item of player.items) {
+        const def = ITEMS[item.itemType as keyof typeof ITEMS];
+        const emoji = def?.emoji ?? '?';
+        itemParts.push(`${emoji}x${item.quantity}`);
+      }
+      const itemsStr = itemParts.length > 0 ? itemParts.join(' ') : 'none';
+      const itemsText = new Text({ text: itemsStr, style: itemStyle });
+      itemsText.y = 33;
+      entry.addChild(itemsText);
+
+      // Equipment
+      const equipParts: string[] = [];
+      for (const [slot, tier] of Object.entries(player.equipment)) {
+        const emoji = EQUIP_EMOJI[slot] ?? slot;
+        equipParts.push(`${emoji}T${tier}`);
+      }
+      if (equipParts.length > 0) {
+        const equipText = new Text({ text: equipParts.join(' '), style: itemStyle });
+        equipText.y = 48;
+        entry.addChild(equipText);
+      }
+
       this.container.addChild(entry);
-      this.playerEntries.set(id, { container: entry, nameText, infoText });
+      this.playerEntries.set(id, { container: entry });
 
       y += LINE_HEIGHT;
     }

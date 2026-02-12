@@ -634,6 +634,7 @@ setInterval(() => {
         type: 'player_info_update',
         playerId: mp.id, displayName: mp.displayName,
         x: mp.x, y: mp.y, gold: mp.gold, items: mp.items,
+        equipment: mp.equipment,
       });
     }
   }

@@ -156,6 +156,9 @@ export class Game {
         this.switchScene('mining');
       });
       this.surfaceScene.setLogoutCallback(() => this.handleLogout());
+      this.surfaceScene.setLeaveMatchCallback(() => this.handleLeaveMatch());
+      this.surfaceScene.setSaveGameCallback(() => this.handleManualSave());
+      this.surfaceScene.setIsOffline(this.connection === null);
     }
 
     this.saveManager.startAutoSave(() => this.collectSaveData());
@@ -170,6 +173,16 @@ export class Game {
     this.saveManager.clear();
     this.sessionManager.clearAuth();
     this.switchScene('lobby');
+  }
+
+  private handleLeaveMatch(): void {
+    this.saveManager.stopAutoSave();
+    this.saveManager.clear();
+    this.switchScene('lobby');
+  }
+
+  private handleManualSave(): void {
+    this.saveManager.save(this.collectSaveData());
   }
 
   private setupNavigationPrevention(): void {
@@ -311,6 +324,9 @@ export class Game {
         this.switchScene('mining');
       });
       this.surfaceScene.setLogoutCallback(() => this.handleLogout());
+      this.surfaceScene.setLeaveMatchCallback(() => this.handleLeaveMatch());
+      this.surfaceScene.setSaveGameCallback(() => this.handleManualSave());
+      this.surfaceScene.setIsOffline(this.connection === null);
     } else if (scene === 'lobby') {
       // Reconnect if needed (e.g. after logout)
       if (!this.connection || !this.messageHandler) {
