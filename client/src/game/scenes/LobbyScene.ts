@@ -73,11 +73,13 @@ export class LobbyScene {
     this.createCardContainer();
     this.drawStatusText();
 
-    if (sessionManager.isLoggedIn()) {
+    if (sessionManager.isLoggedIn() && sessionManager.getNickname()) {
       const token = sessionManager.getToken();
       if (token) this.connection.send({ type: 'auth', token });
       this.showMenu();
     } else {
+      // Clear any stale/invalid auth data
+      sessionManager.clearAuth();
       this.showLoginScreen();
     }
 

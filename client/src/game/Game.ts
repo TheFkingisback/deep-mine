@@ -293,10 +293,17 @@ export class Game {
       });
       this.surfaceScene.setLogoutCallback(() => this.handleLogout());
     } else if (scene === 'lobby') {
+      // Reconnect if needed (e.g. after logout)
+      if (!this.connection || !this.messageHandler) {
+        await this.connectToServer();
+      }
       if (this.connection && this.messageHandler) {
         this.lobbyScene = new LobbyScene(this.app, this.connection, this.messageHandler);
         await this.lobbyScene.init();
         this.lobbyScene.setMatchFoundCallback((data) => this.onMatchFound(data));
+      } else {
+        // Offline fallback — start mining directly
+        this.startOfflineMining();
       }
     }
 
