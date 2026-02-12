@@ -24,6 +24,7 @@ export class Game {
   // Match context
   private matchSeed = 0;
   private matchId = '';
+  private playerDisplayName = '';
 
   // Navigation prevention
   private reloadBlockerHandler: ((e: KeyboardEvent) => void) | null = null;
@@ -128,6 +129,7 @@ export class Game {
     this.playerState = saved.playerState;
     this.matchSeed = saved.matchSeed;
     this.matchId = saved.matchId;
+    this.playerDisplayName = this.sessionManager.getNickname() ?? '';
 
     if (!saved.isOffline) {
       await this.connectToServer();
@@ -138,7 +140,7 @@ export class Game {
       this.miningScene = new MiningScene(
         this.app, this.playerState,
         this.connection ?? undefined, this.messageHandler ?? undefined,
-        this.matchSeed, this.matchId,
+        this.matchSeed, this.matchId, undefined, this.playerDisplayName,
       );
       await this.miningScene.init();
       this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
@@ -178,6 +180,10 @@ export class Game {
   private handleLeaveMatch(): void {
     this.saveManager.stopAutoSave();
     this.saveManager.clear();
+    // Tell server we're leaving the match
+    if (this.connection?.isConnected) {
+      this.connection.send({ type: 'leave_match' });
+    }
     this.switchScene('lobby');
   }
 
@@ -210,6 +216,7 @@ export class Game {
 
     this.matchSeed = data.seed;
     this.matchId = data.matchId;
+    this.playerDisplayName = data.displayName ?? '';
 
     // Create player state from server data
     this.playerState = {
@@ -239,7 +246,7 @@ export class Game {
     this.miningScene = new MiningScene(
       this.app, this.playerState,
       this.connection ?? undefined, this.messageHandler ?? undefined,
-      data.seed, data.matchId, data.players,
+      data.seed, data.matchId, data.players, this.playerDisplayName,
     );
     await this.miningScene.init();
     this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
@@ -310,7 +317,7 @@ export class Game {
       this.miningScene = new MiningScene(
         this.app, this.playerState,
         this.connection ?? undefined, this.messageHandler ?? undefined,
-        this.matchSeed, this.matchId,
+        this.matchSeed, this.matchId, undefined, this.playerDisplayName,
       );
       await this.miningScene.init();
       this.miningScene.setSurfaceCallback(() => this.switchScene('surface'));
@@ -363,6 +370,11 @@ export class Game {
     console.log('GAME OVER');
     this.saveManager.stopAutoSave();
     this.saveManager.clear();
+
+    // Tell server we're leaving the match so we can rejoin later
+    if (this.connection?.isConnected) {
+      this.connection.send({ type: 'leave_match' });
+    }
 
     // Show game over overlay
     const overlay = new Container();

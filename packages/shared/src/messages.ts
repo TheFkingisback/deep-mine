@@ -26,6 +26,12 @@ export interface CollectItemMessage {
 export interface InventorySyncMessage {
   type: 'inventory_sync';
   items: { itemType: string; quantity: number }[];
+  lives?: number;
+  gold?: number;
+}
+
+export interface LeaveMatchMessage {
+  type: 'leave_match';
 }
 
 export interface GoSurfaceMessage {
@@ -130,7 +136,8 @@ export type ClientMessage =
   | JoinMatchMessage
   | ListMatchesMessage
   | SetNameMessage
-  | RequestWorldStateMessage;
+  | RequestWorldStateMessage
+  | LeaveMatchMessage;
 
 // ─── Server → Client Messages ───────────────────────────────────────
 

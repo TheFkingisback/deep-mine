@@ -80,6 +80,9 @@ export class MiningScene {
   // Death animation
   private isDying = false;
 
+  // Display name from auth (shown in PlayerInfoBox)
+  private displayName: string;
+
   // Callbacks
   private onSurfaceCallback: (() => void) | null = null;
   private onGameOverCallback: (() => void) | null = null;
@@ -104,6 +107,7 @@ export class MiningScene {
     serverSeed?: number,
     matchId?: string,
     initialPlayers?: { playerId: string; displayName: string; x: number; y: number }[],
+    displayName?: string,
   ) {
     this.app = app;
     this.playerState = playerState;
@@ -111,6 +115,7 @@ export class MiningScene {
     this.messageHandler = messageHandler ?? null;
     this.matchId = matchId ?? '';
     this.initialPlayers = initialPlayers ?? [];
+    this.displayName = displayName ?? 'Miner';
     this.worldSeed = serverSeed ?? Math.floor(Math.random() * 1000000);
     this.rng = createRNG(this.worldSeed + Date.now());
 
@@ -456,7 +461,7 @@ export class MiningScene {
     for (const slot of this.playerState.inventory) {
       if (slot) items.push({ itemType: slot.itemType, quantity: slot.quantity });
     }
-    this.connection.send({ type: 'inventory_sync', items });
+    this.connection.send({ type: 'inventory_sync', items, lives: this.playerState.lives, gold: this.playerState.gold });
   }
 
   /**
@@ -900,6 +905,9 @@ export class MiningScene {
           this.playerState.lives = Math.max(0, this.playerState.lives - 1);
           this.hud.updateLives(this.playerState.lives);
           console.log(`TNT hit! Lives remaining: ${this.playerState.lives}`);
+
+          // Sync updated lives/gold to server so opponents see the change
+          this.sendInventorySync();
 
           // Block input during death animation
           this.isDying = true;
@@ -1635,7 +1643,7 @@ export class MiningScene {
 
     this.playerInfoBox.updatePlayer({
       playerId: this.playerState.id,
-      displayName: 'You',
+      displayName: this.displayName,
       x: this.playerState.position.x,
       y: this.playerState.position.y,
       gold: this.playerState.gold,

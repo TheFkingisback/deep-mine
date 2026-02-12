@@ -579,6 +579,25 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
           quantity: Number(it.quantity) || 0,
         }));
       }
+      // Update lives from client (server doesn't track damage)
+      if (typeof message.lives === 'number' && Number.isInteger(message.lives) && message.lives >= 0 && message.lives <= 10) {
+        syncMp.lives = message.lives;
+      }
+      // Update gold from client (supplement server-side tracking)
+      if (typeof message.gold === 'number' && Number.isFinite(message.gold) && message.gold >= 0) {
+        syncMp.gold = message.gold;
+      }
+      break;
+    }
+
+    case 'leave_match': {
+      const leaveResult = matchManager.leaveMatch(player.id);
+      if (leaveResult) {
+        matchManager.broadcastToAllInMatch(leaveResult.match.id, {
+          type: 'other_player_left',
+          playerId: player.id,
+        });
+      }
       break;
     }
 
@@ -625,7 +644,6 @@ function handleMessage(player: ConnectedPlayer, message: ClientMessage): void {
       break;
     }
 
-    case 'auth':
     case 'go_surface':
     case 'descend':
       break;
