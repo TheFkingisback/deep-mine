@@ -321,6 +321,7 @@ export interface PlayerInfoUpdateMessage {
   x: number;
   y: number;
   gold: number;
+  lives: number;
   items: { itemType: string; quantity: number }[];
   equipment: Record<string, number>;
 }

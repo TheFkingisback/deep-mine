@@ -129,7 +129,7 @@ export class MiningScene {
     this.lightingSystem = new LightingSystem(this.app);
     this.cameraSystem = new CameraSystem(this.app.screen.width, this.app.screen.height);
     this.hud = new HUD(this.app);
-    this.playerInfoBox = new PlayerInfoBox(this.app.stage, this.app.screen.width);
+    this.playerInfoBox = new PlayerInfoBox(this.app.stage, this.app.screen.width, this.playerState.id);
     this.inventoryPanel = new InventoryPanel(this.app);
     this.checkpointReplacePanel = new CheckpointReplacePanel(this.app, (oldDepth, newDepth) => {
       // Remove old checkpoint and add new one

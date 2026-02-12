@@ -633,8 +633,8 @@ setInterval(() => {
       matchManager.broadcastToAllInMatch(matchId, {
         type: 'player_info_update',
         playerId: mp.id, displayName: mp.displayName,
-        x: mp.x, y: mp.y, gold: mp.gold, items: mp.items,
-        equipment: mp.equipment,
+        x: mp.x, y: mp.y, gold: mp.gold, lives: mp.lives,
+        items: mp.items, equipment: mp.equipment,
       });
     }
   }

@@ -12,6 +12,7 @@ export interface MatchPlayer {
   x: number;
   y: number;
   gold: number;
+  lives: number;
   items: { itemType: string; quantity: number }[];
   equipment: Record<string, number>;
   inventory: (InventorySlot | null)[];
@@ -67,6 +68,7 @@ export class MatchManager {
       x: spawnX,
       y: 1,
       gold: 0,
+      lives: 2,
       items: [],
       equipment: {
         [EquipmentSlot.SHOVEL]: 1,

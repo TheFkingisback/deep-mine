@@ -825,7 +825,7 @@ export class LobbyScene {
       y = this.addDivider(y);
       for (const m of msg.matches.slice(0, 5)) {
         this.createSecondaryButton(
-          `${m.matchName}  (${m.playerCount}/${m.maxPlayers})`,
+          `${m.matchName}  (${m.playerCount} players)`,
           y, INPUT_WIDTH, 0x2d6a4f,
           () => {
             this.setStatus(`Joining ${m.matchName}...`, COLORS.warning);

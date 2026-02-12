@@ -7,33 +7,28 @@ interface PlayerInfo {
   x: number;
   y: number;
   gold: number;
+  lives: number;
   items: { itemType: string; quantity: number }[];
-  equipment: Record<string, number>;
 }
 
-const PANEL_WIDTH = 240;
-const LINE_HEIGHT = 72;
-const PADDING = 10;
-
-const EQUIP_EMOJI: Record<string, string> = {
-  shovel: '\u26CF\uFE0F',
-  helmet: '\uD83E\uDE96',
-  vest: '\uD83E\uDDBA',
-  torch: '\uD83D\uDD26',
-  rope: '\uD83E\uDEA2',
-};
+const PANEL_WIDTH = 230;
+const LINE_HEIGHT = 56;
+const PADDING = 8;
 
 /**
  * Semi-transparent panel at top-right showing all players in the match.
- * Displays name, position, gold, items with emojis, and equipment.
+ * Shows: name, gold, lives, collected items with emojis.
+ * Self player listed first, then opponents sorted by gold (descending).
  */
 export class PlayerInfoBox {
   private container: Container;
   private background: Graphics;
   private playerEntries: Map<string, { container: Container }> = new Map();
   private players: Map<string, PlayerInfo> = new Map();
+  private selfPlayerId: string;
 
-  constructor(parentContainer: Container, screenWidth: number) {
+  constructor(parentContainer: Container, screenWidth: number, selfPlayerId = '') {
+    this.selfPlayerId = selfPlayerId;
     this.container = new Container();
     this.container.x = screenWidth - PANEL_WIDTH - 10;
     this.container.y = 10;
@@ -45,12 +40,17 @@ export class PlayerInfoBox {
     this.redrawBackground();
   }
 
+  setSelfPlayerId(id: string): void {
+    this.selfPlayerId = id;
+  }
+
   updatePlayer(info: {
     playerId: string;
     displayName: string;
     x: number;
     y: number;
     gold: number;
+    lives?: number;
     items: { itemType: string; quantity: number }[];
     equipment?: Record<string, number>;
   }): void {
@@ -60,8 +60,8 @@ export class PlayerInfoBox {
       x: info.x,
       y: info.y,
       gold: info.gold,
+      lives: info.lives ?? 2,
       items: info.items,
-      equipment: info.equipment ?? {},
     });
     this.refresh();
   }
@@ -69,6 +69,15 @@ export class PlayerInfoBox {
   removePlayer(playerId: string): void {
     this.players.delete(playerId);
     this.refresh();
+  }
+
+  private getSortedPlayers(): PlayerInfo[] {
+    const all = [...this.players.values()];
+    const self = all.filter(p => p.playerId === this.selfPlayerId);
+    const others = all
+      .filter(p => p.playerId !== this.selfPlayerId)
+      .sort((a, b) => b.gold - a.gold);
+    return [...self, ...others];
   }
 
   private refresh(): void {
@@ -79,38 +88,35 @@ export class PlayerInfoBox {
     }
     this.playerEntries.clear();
 
-    const nameStyle = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 13,
-      fontWeight: 'bold',
-      fill: '#F0A500',
-    });
-
-    const infoStyle = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 11,
-      fill: '#CCCCEE',
-    });
-
-    const itemStyle = new TextStyle({
-      fontFamily: 'Arial, sans-serif',
-      fontSize: 10,
-      fill: '#AADDAA',
-    });
+    const sorted = this.getSortedPlayers();
 
     let y = PADDING;
-    for (const [id, player] of this.players) {
+    for (const player of sorted) {
+      const isSelf = player.playerId === this.selfPlayerId;
       const entry = new Container();
       entry.y = y;
       entry.x = PADDING;
 
-      // Player name
-      const nameText = new Text({ text: player.displayName, style: nameStyle });
+      // Player name (highlight self)
+      const nameStyle = new TextStyle({
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 13,
+        fontWeight: 'bold',
+        fill: isSelf ? '#55FF55' : '#F0A500',
+      });
+      const nameLabel = isSelf ? `${player.displayName} (YOU)` : player.displayName;
+      const nameText = new Text({ text: nameLabel, style: nameStyle });
       entry.addChild(nameText);
 
-      // Position and gold
-      const posGold = `Pos: (${player.x}, ${player.y})  G: ${player.gold}`;
-      const infoText = new Text({ text: posGold, style: infoStyle });
+      // Gold + Lives
+      const hearts = '\u2764\uFE0F'.repeat(Math.max(0, player.lives));
+      const goldLivesStr = `G: ${player.gold}  ${hearts}`;
+      const infoStyle = new TextStyle({
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 11,
+        fill: '#CCCCEE',
+      });
+      const infoText = new Text({ text: goldLivesStr, style: infoStyle });
       infoText.y = 17;
       entry.addChild(infoText);
 
@@ -121,25 +127,19 @@ export class PlayerInfoBox {
         const emoji = def?.emoji ?? '?';
         itemParts.push(`${emoji}x${item.quantity}`);
       }
-      const itemsStr = itemParts.length > 0 ? itemParts.join(' ') : 'none';
-      const itemsText = new Text({ text: itemsStr, style: itemStyle });
-      itemsText.y = 33;
-      entry.addChild(itemsText);
-
-      // Equipment
-      const equipParts: string[] = [];
-      for (const [slot, tier] of Object.entries(player.equipment)) {
-        const emoji = EQUIP_EMOJI[slot] ?? slot;
-        equipParts.push(`${emoji}T${tier}`);
-      }
-      if (equipParts.length > 0) {
-        const equipText = new Text({ text: equipParts.join(' '), style: itemStyle });
-        equipText.y = 48;
-        entry.addChild(equipText);
+      if (itemParts.length > 0) {
+        const itemStyle = new TextStyle({
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 10,
+          fill: '#AADDAA',
+        });
+        const itemsText = new Text({ text: itemParts.join(' '), style: itemStyle });
+        itemsText.y = 33;
+        entry.addChild(itemsText);
       }
 
       this.container.addChild(entry);
-      this.playerEntries.set(id, { container: entry });
+      this.playerEntries.set(player.playerId, { container: entry });
 
       y += LINE_HEIGHT;
     }
