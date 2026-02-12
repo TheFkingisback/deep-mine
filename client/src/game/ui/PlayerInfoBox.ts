@@ -24,15 +24,17 @@ const EQUIP_EMOJIS: Record<string, string> = {
 const PANEL_WIDTH = 240;
 const ENTRY_HEIGHT = 80;
 const PADDING = 8;
+const MAX_SLOTS = 8;
 
 /**
  * Panel at top-right showing all players in the match.
- * Renders elements directly on parentContainer (no wrapper Container)
- * to work around PixiJS v8 container rendering issues.
+ * Uses persistent pre-allocated elements — never destroy/recreate,
+ * just update .text and .visible to avoid PixiJS v8 rendering issues.
  */
 export class PlayerInfoBox {
   private parentContainer: Container;
-  private elements: (Graphics | Text)[] = [];
+  private bg: Graphics;
+  private slots: { name: Text; info: Text }[] = [];
   private players: Map<string, PlayerInfo> = new Map();
   private selfPlayerId: string;
   private panelX: number;
@@ -42,6 +44,45 @@ export class PlayerInfoBox {
     this.selfPlayerId = selfPlayerId;
     this.parentContainer = parentContainer;
     this.panelX = screenWidth - PANEL_WIDTH - 10;
+
+    // Persistent background
+    this.bg = new Graphics();
+    this.bg.x = this.panelX;
+    this.bg.y = this.panelY;
+    this.parentContainer.addChild(this.bg);
+
+    // Pre-allocate text slots (created once, never destroyed until cleanup)
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const name = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 13,
+          fontWeight: 'bold',
+          fill: '#F0A500',
+        }),
+      });
+      name.x = this.panelX + PADDING;
+      name.y = this.panelY + PADDING + i * ENTRY_HEIGHT;
+      name.visible = false;
+      this.parentContainer.addChild(name);
+
+      const info = new Text({
+        text: '',
+        style: new TextStyle({
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 10,
+          fill: '#CCCCEE',
+          lineHeight: 15,
+        }),
+      });
+      info.x = this.panelX + PADDING;
+      info.y = this.panelY + PADDING + 18 + i * ENTRY_HEIGHT;
+      info.visible = false;
+      this.parentContainer.addChild(info);
+
+      this.slots.push({ name, info });
+    }
   }
 
   setSelfPlayerId(id: string): void {
@@ -118,74 +159,49 @@ export class PlayerInfoBox {
   }
 
   private refresh(): void {
-    // Remove all old elements from parent
-    for (const el of this.elements) {
-      if (el.parent) el.parent.removeChild(el);
-      el.destroy();
-    }
-    this.elements = [];
-
     const sorted = this.getSortedPlayers();
-    if (sorted.length === 0) return;
 
-    // Background — added directly to parentContainer
-    const height = Math.max(40, sorted.length * ENTRY_HEIGHT + PADDING * 2);
-    const bg = new Graphics();
-    bg.roundRect(0, 0, PANEL_WIDTH, height, 6);
-    bg.fill({ color: 0x000000, alpha: 0.6 });
-    bg.roundRect(0, 0, PANEL_WIDTH, height, 6);
-    bg.stroke({ color: 0xf0a500, width: 1, alpha: 0.4 });
-    bg.x = this.panelX;
-    bg.y = this.panelY;
-    this.parentContainer.addChild(bg);
-    this.elements.push(bg);
+    // Update background
+    this.bg.clear();
+    if (sorted.length > 0) {
+      const height = sorted.length * ENTRY_HEIGHT + PADDING * 2;
+      this.bg.roundRect(0, 0, PANEL_WIDTH, height, 6);
+      this.bg.fill({ color: 0x000000, alpha: 0.6 });
+      this.bg.roundRect(0, 0, PANEL_WIDTH, height, 6);
+      this.bg.stroke({ color: 0xf0a500, width: 1, alpha: 0.4 });
+    }
 
-    // Player entries
-    let y = this.panelY + PADDING;
-    for (const player of sorted) {
-      const isSelf = player.playerId === this.selfPlayerId;
+    // Update pre-allocated slots (no create/destroy)
+    for (let i = 0; i < MAX_SLOTS; i++) {
+      const slot = this.slots[i];
+      if (i < sorted.length) {
+        const player = sorted[i];
+        const isSelf = player.playerId === this.selfPlayerId;
 
-      // Player name
-      const nameLabel = isSelf ? `${player.displayName} (YOU)` : player.displayName;
-      const nameText = new Text({
-        text: nameLabel,
-        style: new TextStyle({
-          fontFamily: 'Arial, sans-serif',
-          fontSize: 13,
-          fontWeight: 'bold',
-          fill: isSelf ? '#55FF55' : '#F0A500',
-        }),
-      });
-      nameText.x = this.panelX + PADDING;
-      nameText.y = y;
-      this.parentContainer.addChild(nameText);
-      this.elements.push(nameText);
+        const nameLabel = isSelf ? `${player.displayName} (YOU)` : player.displayName;
+        slot.name.text = nameLabel;
+        slot.name.style.fill = isSelf ? '#55FF55' : '#F0A500';
+        slot.name.visible = true;
 
-      // Info (position, gold, lives, items, equipment)
-      const infoStr = this.formatPlayerText(player);
-      const infoText = new Text({
-        text: infoStr,
-        style: new TextStyle({
-          fontFamily: 'Arial, sans-serif',
-          fontSize: 10,
-          fill: isSelf ? '#CCDDCC' : '#CCCCEE',
-          lineHeight: 15,
-        }),
-      });
-      infoText.x = this.panelX + PADDING;
-      infoText.y = y + 18;
-      this.parentContainer.addChild(infoText);
-      this.elements.push(infoText);
-
-      y += ENTRY_HEIGHT;
+        slot.info.text = this.formatPlayerText(player);
+        slot.info.style.fill = isSelf ? '#CCDDCC' : '#CCCCEE';
+        slot.info.visible = true;
+      } else {
+        slot.name.visible = false;
+        slot.info.visible = false;
+      }
     }
   }
 
   destroy(): void {
-    for (const el of this.elements) {
-      if (el.parent) el.parent.removeChild(el);
-      el.destroy();
+    if (this.bg.parent) this.bg.parent.removeChild(this.bg);
+    this.bg.destroy();
+    for (const slot of this.slots) {
+      if (slot.name.parent) slot.name.parent.removeChild(slot.name);
+      slot.name.destroy();
+      if (slot.info.parent) slot.info.parent.removeChild(slot.info);
+      slot.info.destroy();
     }
-    this.elements = [];
+    this.slots = [];
   }
 }
