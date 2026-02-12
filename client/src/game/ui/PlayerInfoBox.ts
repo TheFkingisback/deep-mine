@@ -1,5 +1,6 @@
 import { Container, Graphics, Text, TextStyle } from 'pixi.js';
 import { ITEMS } from '@shared/items';
+import { EquipmentSlot } from '@shared/types';
 
 interface PlayerInfo {
   playerId: string;
@@ -9,10 +10,19 @@ interface PlayerInfo {
   gold: number;
   lives: number;
   items: { itemType: string; quantity: number }[];
+  equipment: Record<string, number>;
 }
 
-const PANEL_WIDTH = 230;
-const LINE_HEIGHT = 56;
+const EQUIP_EMOJIS: Record<string, string> = {
+  [EquipmentSlot.SHOVEL]: '\u26CF\uFE0F',
+  [EquipmentSlot.HELMET]: '\u26D1\uFE0F',
+  [EquipmentSlot.VEST]: '\uD83E\uDDBA',
+  [EquipmentSlot.TORCH]: '\uD83D\uDD26',
+  [EquipmentSlot.ROPE]: '\uD83E\uDE62',
+};
+
+const PANEL_WIDTH = 240;
+const LINE_HEIGHT = 82;
 const PADDING = 8;
 
 /**
@@ -62,6 +72,7 @@ export class PlayerInfoBox {
       gold: info.gold,
       lives: info.lives ?? 2,
       items: info.items,
+      equipment: info.equipment ?? {},
     });
     this.refresh();
   }
@@ -108,15 +119,18 @@ export class PlayerInfoBox {
       const nameText = new Text({ text: nameLabel, style: nameStyle });
       entry.addChild(nameText);
 
-      // Gold + Lives
+      // Position + Gold + Lives
+      const ix = Math.floor(player.x);
+      const iy = Math.floor(player.y);
+      const posStr = iy <= 1 ? 'Surface' : `(${ix},${iy})`;
       const hearts = '\u2764\uFE0F'.repeat(Math.max(0, player.lives));
-      const goldLivesStr = `G: ${player.gold}  ${hearts}`;
+      const infoStr = `${posStr}  G:${player.gold}  ${hearts}`;
       const infoStyle = new TextStyle({
         fontFamily: 'Arial, sans-serif',
         fontSize: 11,
         fill: '#CCCCEE',
       });
-      const infoText = new Text({ text: goldLivesStr, style: infoStyle });
+      const infoText = new Text({ text: infoStr, style: infoStyle });
       infoText.y = 17;
       entry.addChild(infoText);
 
@@ -137,6 +151,23 @@ export class PlayerInfoBox {
         itemsText.y = 33;
         entry.addChild(itemsText);
       }
+
+      // Equipment with emojis
+      const equipOrder = [EquipmentSlot.SHOVEL, EquipmentSlot.HELMET, EquipmentSlot.VEST, EquipmentSlot.TORCH, EquipmentSlot.ROPE];
+      const equipParts: string[] = [];
+      for (const slot of equipOrder) {
+        const tier = player.equipment[slot] ?? 1;
+        const emoji = EQUIP_EMOJIS[slot] ?? '?';
+        equipParts.push(`${emoji}T${tier}`);
+      }
+      const equipStyle = new TextStyle({
+        fontFamily: 'Arial, sans-serif',
+        fontSize: 10,
+        fill: '#AADDFF',
+      });
+      const equipText = new Text({ text: equipParts.join(' '), style: equipStyle });
+      equipText.y = itemParts.length > 0 ? 48 : 33;
+      entry.addChild(equipText);
 
       this.container.addChild(entry);
       this.playerEntries.set(player.playerId, { container: entry });

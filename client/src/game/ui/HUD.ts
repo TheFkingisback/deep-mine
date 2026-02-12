@@ -401,6 +401,8 @@ export class HUD {
       this.layerText.text = layer.displayName;
       this.layerText.style.fill = layer.ambientColor;
     }
+    // Re-align right-side texts after content change
+    this.realignRightTexts();
   }
 
   updateEquipment(equipment: Record<string, number>): void {
@@ -421,6 +423,14 @@ export class HUD {
     } else {
       this.matchCodeText.visible = false;
     }
+    this.realignRightTexts();
+  }
+
+  private realignRightTexts(): void {
+    const width = this.app.screen.width;
+    this.depthText.x = width - this.depthText.width - 12;
+    this.layerText.x = width - this.layerText.width - 12;
+    this.matchCodeText.x = width - this.matchCodeText.width - 12;
   }
 
   updateInventory(_used: number, _max: number): void {
