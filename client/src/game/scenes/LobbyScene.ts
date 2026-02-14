@@ -80,6 +80,7 @@ export class LobbyScene {
     if (sessionManager.isLoggedIn() && sessionManager.getNickname()) {
       const token = sessionManager.getToken();
       if (token) this.connection.send({ type: 'auth', token });
+      this.connection.send({ type: 'set_name', name: sessionManager.getNickname()! });
       this.showMenu();
     } else {
       // Clear any stale/invalid auth data
@@ -491,6 +492,7 @@ export class LobbyScene {
     if (result.success && result.token && result.nickname) {
       sessionManager.saveAuth(result.token, result.nickname);
       this.connection.send({ type: 'auth', token: result.token });
+      this.connection.send({ type: 'set_name', name: result.nickname });
       this.setStatus(`Welcome back, ${result.nickname}!`, COLORS.success);
       setTimeout(() => this.showMenu(), 600);
     } else {
@@ -555,6 +557,7 @@ export class LobbyScene {
     if (result.success && result.token && result.nickname) {
       sessionManager.saveAuth(result.token, result.nickname);
       this.connection.send({ type: 'auth', token: result.token });
+      this.connection.send({ type: 'set_name', name: result.nickname });
       this.setStatus(`Welcome, ${result.nickname}!`, COLORS.success);
       setTimeout(() => this.showMenu(), 600);
     } else {

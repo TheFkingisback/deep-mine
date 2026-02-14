@@ -108,6 +108,11 @@ export class Game {
         this.connection.send({ type: 'auth', token });
         console.log('🔑 Sent auth token to server');
       }
+      // Also send set_name as fallback (in case JWT validation fails)
+      const nickname = this.sessionManager.getNickname();
+      if (nickname) {
+        this.connection.send({ type: 'set_name', name: nickname });
+      }
     } catch {
       console.warn('⚠️ Could not connect to server — playing offline');
       this.connection = null;
